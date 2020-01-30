@@ -1,0 +1,52 @@
+*&---------------------------------------------------------------------*
+*& Report  ZWS_CONTABILIZAR_COMPROBANTES
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  zws_contabilizar_comprobantes MESSAGE-ID ytax.
+
+INCLUDE zws_contabilizar_class.
+INCLUDE zws_contabilizar_top.
+INCLUDE zws_contabilizar_scr.
+INCLUDE zws_contabilizar_f0.
+
+INITIALIZATION.
+
+  PERFORM screen_initialization.
+
+  p_desde = sy-datum - 30.
+
+  PERFORM f_carga_tabla.
+  PERFORM f_vista_fecha.
+  PERFORM f_vista_estado.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR: p_txt.
+  PERFORM f_ruta_txt.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_pdf.
+  PERFORM f_ruta_pdf.
+
+AT SELECTION-SCREEN.
+
+  PERFORM f_at_sel_scr.
+
+START-OF-SELECTION.
+
+  PERFORM f_proceso_log.
+  PERFORM f_cargar_carpeta.
+  PERFORM f_read_file.
+  PERFORM f_proceso_xblnr.
+  PERFORM f_obtiene_cuit.
+  PERFORM f_carga_tabla.
+  PERFORM f_check_bukrs.
+  PERFORM f_consultar_comprobantes.
+  PERFORM f_procesar_datos.
+  PERFORM f_cruzar_datos.
+  PERFORM f_validar_lista_estado.
+  PERFORM f_procesar_alv.
+  PERFORM init_controls.
+  PERFORM set_layout_and_variant.
+  PERFORM p_print_alv.
