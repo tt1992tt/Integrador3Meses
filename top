@@ -1,0 +1,162 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZWS_CONTABILIZAR_TOP
+*&---------------------------------------------------------------------*
+
+*-----------------------------------------------------------------------*
+*-TABLES----------------------------------------------------------------*
+*-----------------------------------------------------------------------*
+TABLES: sscrfields, bkpf.
+*-----------------------------------------------------------------------*
+*-TABLES----------------------------------------------------------------*
+*-----------------------------------------------------------------------*
+TYPE-POOLS: icon.
+*-----------------------------------------------------------------------*
+*-ESTRUCTURAS-----------------------------------------------------------*
+*-----------------------------------------------------------------------*
+
+** Tabla de salida
+TYPES: BEGIN OF ty_salida.
+        INCLUDE STRUCTURE ztb_cont_comp.
+TYPES:
+xblnr_c                 TYPE xblnr,
+lifnr                   TYPE lfa1-lifnr,
+archivo(100)            TYPE c,
+  END OF ty_salida.
+
+TYPES: BEGIN OF ty_msg,
+ msgty TYPE symsgty,
+ msgid TYPE symsgid,
+ msgno TYPE symsgno,
+ msgv1 TYPE symsgv,
+ detlevel TYPE ballevel,
+END OF ty_msg.
+
+TYPES: BEGIN OF ty_lifnr,
+  lifnr TYPE lfa1-lifnr,
+  stcd1 TYPE lfa1-stcd1,
+END OF ty_lifnr.
+
+*** Batch Input Return message table.
+TYPES: BEGIN OF ty_return.
+        INCLUDE TYPE bdcmsgcoll.
+TYPES   line_err(4)   TYPE c.
+TYPES: END OF ty_return.
+
+TYPES: ts_t_salida TYPE STANDARD TABLE OF ty_salida.
+TYPES: ts_t_lifnr TYPE STANDARD TABLE OF ty_lifnr.
+
+*** BDC data table. (Table for batch imput)
+TYPES: BEGIN OF ty_bdcdata.
+        INCLUDE TYPE bdcdata.
+TYPES: END OF ty_bdcdata.
+
+TYPES: ty_t_bdcdata TYPE STANDARD TABLE OF ty_bdcdata,
+       ty_t_return  TYPE STANDARD TABLE OF ty_return.
+
+DATA: it_bdctab TYPE ty_t_bdcdata,
+      it_return_aux TYPE ty_t_return.
+
+* LFBW para guardar los logs
+TYPES: BEGIN OF ty_lfbw.
+        INCLUDE STRUCTURE ztb_lfbw.
+TYPES: END OF ty_lfbw.
+
+TYPES: ty_t_lfbw TYPE STANDARD TABLE OF ty_lfbw.
+DATA it_lfbw TYPE ty_t_lfbw.
+
+*-- Salida de Mail
+TYPES: BEGIN OF ty_mail_output,
+         corrida          TYPE char10,
+         prov             TYPE string,
+         msj              TYPE string,
+       END OF ty_mail_output.
+
+DATA it_mail_output TYPE STANDARD TABLE OF ty_mail_output.
+
+* html
+TYPES: BEGIN OF ty_html,
+    line(1000) TYPE c,
+  END OF ty_html.
+
+* html
+TYPES: BEGIN OF ty_table,
+  archivo(100)  TYPE c,
+  evidencia(100) TYPE c,
+  pdf(100) TYPE c,
+  oc(100) TYPE c,
+  cuit(30) TYPE c,
+  doc(30) TYPE c,
+  doc_5(30) TYPE c,
+  cae(30) TYPE c,
+  caea(30) TYPE c,
+  cai(30) TYPE c,
+  END OF ty_table.
+
+
+*-----------------------------------------------------------------------*
+*-VARIABLES-------------------------------------------------------------*
+*-----------------------------------------------------------------------*
+TYPES: ts_t_lfb1 TYPE STANDARD TABLE OF lfb1,
+       ts_t_lfa1 TYPE STANDARD TABLE OF lfa1.
+
+DATA: gv_cuit TYPE stcd1,
+      gv_log_handle TYPE balloghndl,
+      gv_entor TYPE char1,
+      functxt TYPE smp_dyntxt,
+      it_salida TYPE ts_t_salida,
+      vl_tipo_ejec(1),
+      vl_c_10(10),
+      vl_c_c_10(10).
+
+*-----------------------------------------------------------------------*
+*-TABLAS----------------------------------------------------------------*
+*-----------------------------------------------------------------------*
+TYPES: ts_t_comprobantes TYPE STANDARD TABLE OF ztb_cont_comp,
+       ty_t_html         TYPE STANDARD TABLE OF ty_html.
+
+DATA:  gt_zfe_relaciones  TYPE TABLE OF zfe_relaciones,
+       gt_comprobantes    TYPE TABLE OF ztb_cont_comp,
+       gt_log_handle      TYPE bal_t_logh,
+       gt_comprob_eq      TYPE TABLE OF ztb_comprob_eq,
+       gt_comprobante     TYPE ts_t_comprobantes,
+       gt_doc_park        TYPE TABLE OF ztb_cont_comp,
+       it_ty_t_excel      TYPE alsmex_tabline OCCURS 0 WITH HEADER LINE,
+       it_txt             TYPE TABLE OF ty_table,
+       it_pdf             TYPE filetable,
+       it_string          TYPE TABLE OF string,
+       it_msg             TYPE TABLE OF BAL_S_MSG.
+
+*-----------------------------------------------------------------------*
+*-ESTRUCTURAS-----------------------------------------------------------*
+*-----------------------------------------------------------------------*
+
+DATA: gs_comprobantes    TYPE zfc_consultar_comprobantes_re1,
+      gs_comprobante     TYPE ztb_cont_comp.
+
+*-----------------------------------------------------------------------*
+*-ALV-------------------------------------------------------------------*
+*-----------------------------------------------------------------------*
+
+DATA:  gs_fieldcat       TYPE lvc_s_fcat,
+       it_fieldcat       TYPE lvc_t_fcat.
+
+DATA:  gs_variant  TYPE disvariant,
+       gs_layout   TYPE lvc_s_layo,
+       gs_mail     LIKE somlreci1-receiver.
+
+* CLASES
+DATA: gr_docking        TYPE REF TO cl_gui_docking_container,
+      gr_grid           TYPE REF TO cl_gui_alv_grid,
+      gr_event_handler  TYPE REF TO lcl_event_handler,
+      gr_splitter       TYPE REF TO cl_gui_splitter_container,
+      go_html_viewer    TYPE REF TO cl_gui_html_viewer,
+      graphic_parent1   TYPE REF TO cl_gui_container,
+      graphic_parent2   TYPE REF TO cl_gui_container.
+
+DATA: gv_okcode     TYPE ui_func,
+      gv_repid      TYPE syst-repid,
+      gv_col        TYPE i,
+      gv_functxt    TYPE smp_dyntxt,
+      gv_rc         TYPE sy-subrc,
+      cnt           TYPE i,
+      gv_band(1)    TYPE c.
