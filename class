@@ -1,0 +1,100 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZWS_CONTABILIZAR_CLASS
+*&---------------------------------------------------------------------*
+
+CLASS lcl_event_handler DEFINITION.
+
+** Esta clase la creamos nosotros, por eso se define e implementa a diferencia del gr-grid
+  PUBLIC SECTION.
+
+    METHODS:
+*** uso de comandos
+    handle_user_command
+    FOR EVENT user_command OF cl_gui_alv_grid IMPORTING e_ucomm,
+
+*** barra de herramientas
+    handle_toolbar
+    FOR EVENT toolbar OF cl_gui_alv_grid IMPORTING e_object e_interactive,
+
+    handle_hotspot_click
+    FOR EVENT hotspot_click OF cl_gui_alv_grid IMPORTING e_row_id e_column_id.
+
+  PRIVATE SECTION.
+
+ENDCLASS.                    "lcl_event_handler DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_event_handler IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler IMPLEMENTATION.
+
+  METHOD handle_user_command.
+    DATA vl_tipo_ejec(1).
+    CASE e_ucomm.
+      WHEN '&EJEC'.
+        vl_tipo_ejec = 'E'.
+        PERFORM f_marked_lines.
+*      WHEN '&JUEGODATOS'.
+*        vl_tipo_ejec = 'J'.
+*        PERFORM f_marked_lines.
+    ENDCASE.
+  ENDMETHOD.                    "handle_user_command
+
+  METHOD handle_hotspot_click.
+
+    CASE e_column_id.
+      WHEN 'LIFNR'.
+        PERFORM f_llamar_proveedor USING e_row_id-index.
+      WHEN 'BELNR'.
+        PERFORM f_buscar_documento USING e_row_id-index.
+      WHEN 'ARCHIVO'.
+        PERFORM prepare_data USING e_row_id.
+    ENDCASE.
+
+  ENDMETHOD.                    "handle_hotspot_click
+
+  METHOD handle_toolbar.
+
+    DATA: ls_toolbar TYPE stb_button.
+
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&INSERT_ROW'.
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&UNDO'.
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&_ROW'.
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&CUT'.
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&COPY'.
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&COPY_ROW'.
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&PASTE'.
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&APPEND'.
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&DELETE_ROW'.
+    DELETE e_object->mt_toolbar WHERE function = '&LOCAL&COPY_ROW'.
+    DELETE e_object->mt_toolbar WHERE function = '&SORT_ASC'.
+    DELETE e_object->mt_toolbar WHERE function = '&SORT_DSC'.
+    DELETE e_object->mt_toolbar WHERE function = '&MB_FILTER'.
+    DELETE e_object->mt_toolbar WHERE function = '&PRINT_BACK'.
+    DELETE e_object->mt_toolbar WHERE function = '&MB_VIEW'.
+    DELETE e_object->mt_toolbar WHERE function = '&COL0'.
+    DELETE e_object->mt_toolbar WHERE function = '&GRAPH'.
+    DELETE e_object->mt_toolbar WHERE function = 'BOE'.
+    DELETE e_object->mt_toolbar WHERE function = '&INFO'.
+*    DELETE e_object->mt_toolbar WHERE function = '&JUEGODATOS'.
+
+    CLEAR ls_toolbar.
+    MOVE '&EJEC' TO ls_toolbar-function.
+    MOVE icon_execute_object TO ls_toolbar-icon.
+    MOVE text-111 TO ls_toolbar-quickinfo.
+    MOVE text-111 TO ls_toolbar-text.
+    MOVE ' ' TO ls_toolbar-disabled.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+*    CLEAR ls_toolbar.
+*    MOVE '&JUEGODATOS' TO ls_toolbar-function.
+*    MOVE icon_set_state TO ls_toolbar-icon.
+*    MOVE text-113 TO ls_toolbar-quickinfo.
+*    MOVE text-113 TO ls_toolbar-text.
+*    MOVE ' ' TO ls_toolbar-disabled.
+*    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+  ENDMETHOD.                    "handle_toolbar
+ENDCLASS.                    "lcl_event_handler IMPLEMENTATION
