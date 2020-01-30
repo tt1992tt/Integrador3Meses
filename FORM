@@ -1,0 +1,2943 @@
+
+*&---------------------------------------------------------------------*
+*&  Include           ZWS_CONTABILIZAR_F0
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  SCREEN_INITIALIZATION
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM screen_initialization .
+
+* Icon for the push-button
+  functxt-icon_id   =  icon_sym_log_server.
+
+* Quick Info for the icon
+  functxt-quickinfo = text-t01.  "Visor de modificaciones
+
+* Text for the icon
+  functxt-icon_text = text-t01.
+
+  sscrfields-functxt_04 = functxt.
+
+  CLEAR functxt.
+
+* Icon for the push-button
+  functxt-icon_id   =  icon_table_settings.
+
+* Quick Info for the icon
+  functxt-quickinfo = text-002. "Equivalencia comprobantes
+
+* Text for the icon
+  functxt-icon_text = text-002.
+
+  sscrfields-functxt_01 = functxt.
+
+  CLEAR functxt.
+
+* Icon for the push-button
+  functxt-icon_id   =  icon_list.
+
+* Quick Info for the icon
+  functxt-quickinfo = text-003.  "Visualizar logs
+
+* Text for the icon
+  functxt-icon_text = text-003.
+
+  sscrfields-functxt_03 = functxt.
+
+  CLEAR functxt.
+
+* Icon for the push-button
+  functxt-icon_id   =  icon_table_settings.
+
+* Quick Info for the icon
+  functxt-quickinfo = text-004.  "Equivalencia punto de venta
+
+* Text for the icon
+  functxt-icon_text = text-004.
+
+  sscrfields-functxt_02 = functxt.
+
+  CLEAR functxt.
+
+ENDFORM.                    "screen_initialization
+*&---------------------------------------------------------------------*
+*&      Form  F_CARGA_TABLAS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+
+FORM f_carga_tabla .
+
+  REFRESH: gt_zfe_relaciones.
+
+  SELECT DISTINCT *
+    INTO TABLE gt_zfe_relaciones
+    FROM zfe_relaciones.
+
+  SORT gt_zfe_relaciones.
+
+ENDFORM.                " F_CARGA_TABLAS
+
+*&---------------------------------------------------------------------*
+*&      Form  f_vista_fecha
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_vista_fecha .
+
+  DATA: ls_zfe_relaciones  TYPE zfe_relaciones,
+        lt_list            TYPE vrm_values,
+        lv_value           LIKE LINE OF lt_list.
+
+  LOOP AT gt_zfe_relaciones INTO ls_zfe_relaciones WHERE campo = 'FECHA'.
+
+    lv_value-key = ls_zfe_relaciones-clave.
+    lv_value-text = ls_zfe_relaciones-descripcion.
+
+    APPEND lv_value TO lt_list.
+
+  ENDLOOP.
+
+  SORT lt_list.
+  DELETE ADJACENT DUPLICATES FROM lt_list.
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = 'LIST_TP'
+      values = lt_list.
+
+ENDFORM.                    "f_vista_fecha
+*&---------------------------------------------------------------------*
+*&      Form  F_VISUALIZAR_SLG1
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_visualizar_slg1 .
+
+*-- Creo la tabla que le paso al submit con todos los parametros,
+  DATA: lt_rsparams TYPE TABLE OF rsparams,
+        vl_rsparams TYPE rsparams.
+
+  vl_rsparams-selname = 'P_OBJECT'.
+  vl_rsparams-kind = 'P'.
+  vl_rsparams-sign = 'I'.
+  vl_rsparams-option = 'EQ'.
+  vl_rsparams-low = 'Z_TAX'.
+
+  APPEND vl_rsparams TO lt_rsparams.
+
+  vl_rsparams-selname = 'P_SUB_OB'.
+  vl_rsparams-kind = 'P'.
+  vl_rsparams-sign = 'I'.
+  vl_rsparams-option = 'EQ'.
+  vl_rsparams-low = 'CONT_COMP'.
+
+  APPEND vl_rsparams TO lt_rsparams.
+
+  SUBMIT ytax_visualizar_logs WITH SELECTION-TABLE lt_rsparams VIA SELECTION-SCREEN AND RETURN.
+
+ENDFORM.                    " F_VISUALIZAR_SLG1       " F_VISUALIZAR_SLG1
+*&---------------------------------------------------------------------*
+*&      Form  LLAMO_TRANSACCION
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM llamo_transaccion .
+
+  CALL FUNCTION 'VIEW_MAINTENANCE_CALL'
+    EXPORTING
+      action                       = 'S'
+      view_name                    = 'ZTB_COMPROB_EQ'
+    EXCEPTIONS
+      client_reference             = 1
+      foreign_lock                 = 2
+      invalid_action               = 3
+      no_clientindependent_auth    = 4
+      no_database_function         = 5
+      no_editor_function           = 6
+      no_show_auth                 = 7
+      no_tvdir_entry               = 8
+      no_upd_auth                  = 9
+      only_show_allowed            = 10
+      system_failure               = 11
+      unknown_field_in_dba_sellist = 12
+      view_not_found               = 13
+      maintenance_prohibited       = 14
+      OTHERS                       = 15.
+
+  IF sy-subrc NE 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    "llamo_transaccion
+*&---------------------------------------------------------------------*
+*&      Form  F_OBTIENE_CUIT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_obtiene_cuit .
+
+  DATA: st_t001z   TYPE t001z.
+
+*-- Obtengo el CUIT de la sociedad
+  SELECT SINGLE mandt bukrs party paval
+    FROM t001z
+    INTO st_t001z
+    WHERE bukrs = p_bukrs
+      AND party = 'J1AIDN'.
+
+  gv_cuit = st_t001z-paval(16).
+
+ENDFORM.                    " F_OBTIENE_CUIT
+*&---------------------------------------------------------------------*
+*&      Form  F_CHECK_BUKRS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_check_bukrs.
+
+  DATA:       vl_msg   TYPE string.
+  CONSTANTS : con_e    TYPE char1 VALUE 'E'  .
+
+***Check company code authorization
+  AUTHORITY-CHECK OBJECT 'F_BKPF_BUK'
+  ID 'BUKRS' FIELD p_bukrs
+  ID 'ACTVT' FIELD '03'.
+
+  IF sy-subrc NE 0.
+    CONCATENATE text-527
+                p_bukrs
+           INTO vl_msg
+     SEPARATED BY space.
+    MESSAGE vl_msg TYPE con_e .
+  ENDIF.
+
+ENDFORM.                    " F_CHECK_BUKRS
+*&---------------------------------------------------------------------*
+*&      Form  F_PROCESO_LOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_proceso_log.
+
+  DATA: vl_msg            TYPE bal_s_msg,
+        vl_count          TYPE numc4.
+
+  DATA: l_s_log TYPE bal_s_log.
+
+* define some header data of this log
+  l_s_log-extnumber = 'Application Log'.                    "#EC NOTEXT
+  l_s_log-aluser = sy-uname.
+  l_s_log-alprog = sy-repid.
+  l_s_log-object = 'Z_TAX'.
+  l_s_log-subobject = 'CONT_COMP'.
+  l_s_log-aldate_del = sy-datum + 360.
+
+* create a log
+  CALL FUNCTION 'BAL_LOG_CREATE'
+    EXPORTING
+      i_s_log      = l_s_log
+    IMPORTING
+      e_log_handle = gv_log_handle
+    EXCEPTIONS
+      OTHERS       = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    " F_PROCESO_LOG
+*&---------------------------------------------------------------------*
+*&      Form  F_CONSULTAR_COMPROBANTES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_consultar_comprobantes.
+
+* ES UNA ESTRUCTURA CON UNA TABLA ADENTRO
+
+*--Estructuras
+  DATA: ls_comp TYPE zfc_comprobante_type,
+        ls_error TYPE zfc_codigo_descripcion_type,
+        ls_msg TYPE bal_s_msg,
+        ls_error_s TYPE zfc_codigo_descripcion_string,
+        ls_output TYPE ztb_cont_comp,
+        ls_zfe_relaciones TYPE zfe_relaciones,
+        ls_mot_rec TYPE zfc_motivo_rechazo_type,
+        ls_comprobantes TYPE ztb_cont_comp,
+        ls_comprob_eq TYPE ztb_comprob_eq,
+        ls_message_long TYPE string,
+        ls_message TYPE string.
+
+*--Variables
+  DATA: lv_cod TYPE char5,
+        lv_ptovta TYPE char4,
+        lv_nro_cmp8 TYPE char8,
+        lv_fecha_tipo TYPE char20,
+        lv_fecha_desd TYPE sy-datum,
+        lv_token TYPE j_1a_ws_tkn_sign,
+        lv_cod_tipo_cmp TYPE zcod_tipo_cmp,
+        lv_pto_vta TYPE zpto_vta,
+        lv_err TYPE string,
+        lv_marca TYPE c,
+        lv_xblnr4 TYPE xblnr,
+        lv_xblnr5 TYPE xblnr,
+        lv_letra TYPE char1,
+        lv_nro_cmp TYPE znro_cmp.
+
+*-- Tipo de Fecha
+  READ TABLE gt_zfe_relaciones INTO ls_zfe_relaciones WITH KEY bukrs = p_bukrs
+                                                 campo = 'FECHA'
+                                                 clave = list_tp BINARY SEARCH.
+
+  lv_fecha_tipo = ls_zfe_relaciones-afip.
+  CLEAR: ls_zfe_relaciones.
+
+*-- Obtengo Comprobantes
+  CALL FUNCTION 'ZWS_FAC_CR_COMPROBANTES'
+    EXPORTING
+      cuit                        = gv_cuit
+      fecha_tipo                  = lv_fecha_tipo
+      fecha_desde                 = p_desde
+      fecha_hasta                 = p_hasta
+    IMPORTING
+      gs_comprobantes             = gs_comprobantes
+      gs_message_long             = ls_message_long
+      gs_message                  = ls_message
+    EXCEPTIONS
+      err_cx_ai_system_fault      = 1
+      err_cx_ai_application_fault = 2
+      OTHERS                      = 3.
+
+  IF sy-subrc <> 0.
+
+    PERFORM create_mensaje USING ls_error
+                               CHANGING ls_msg.
+
+    IF sy-subrc EQ 1.
+
+      ls_msg-context-value = 'err_cx_ai_system_fault'.
+
+    ELSEIF sy-subrc EQ 2.
+
+      ls_msg-context-value = 'err_cx_ai_application_fault'.
+
+    ELSEIF sy-subrc EQ 3.
+
+      ls_msg-context-value = 'err_other'.
+
+    ENDIF.
+
+    PERFORM add_log_error USING ls_msg.
+
+    ls_msg-context-value = ls_message.
+
+    PERFORM add_log_error USING ls_msg.
+
+    IF ls_message_long IS NOT INITIAL.
+
+      ls_msg-context-value = ls_message_long.
+
+      PERFORM add_log_error USING ls_msg.
+
+    ENDIF.
+
+    WRITE :/ 'Error SYSTEM_FAULT:'.
+    WRITE :/ ls_message.
+    WRITE :/ ls_message_long.
+
+  ENDIF.
+
+*--Analizo los errores
+*--Eventos del sistema
+  IF gs_comprobantes-parameters-consultar_cmp_return-evento IS NOT INITIAL.
+
+    ls_error-codigo = gs_comprobantes-parameters-consultar_cmp_return-evento-codigo.
+    ls_error-descripcion = gs_comprobantes-parameters-consultar_cmp_return-evento-descripcion.
+
+    PERFORM create_mensaje USING ls_error
+                           CHANGING ls_msg.
+
+    lv_cod = ls_error-codigo.
+
+    CONCATENATE 'Cod:'
+                 lv_cod
+                 ':'
+                 ls_error-descripcion
+                 INTO lv_err SEPARATED BY space.
+
+    ls_msg-context-value = lv_err.
+
+    PERFORM add_log_error USING ls_msg.
+
+    lv_marca = 'X'.
+
+  ENDIF.
+
+*--Array Observaciones
+  IF gs_comprobantes-parameters-consultar_cmp_return-array_observaciones IS NOT INITIAL.
+
+    PERFORM create_mensaje USING ls_error
+                     CHANGING ls_msg.
+
+    LOOP AT gs_comprobantes-parameters-consultar_cmp_return-array_observaciones-codigo_descripcion INTO ls_error.
+* loopeo la tabla codigo_descripcion
+
+      lv_cod = ls_error-codigo.
+
+      CONCATENATE 'Cod:'
+                       lv_cod
+                       ':'
+                       ls_error-descripcion
+                       INTO lv_err SEPARATED BY space.
+
+      ls_msg-context-value = lv_err.
+
+      PERFORM add_log_error USING ls_msg.
+
+      lv_marca = 'X'.
+
+    ENDLOOP.
+
+  ENDIF.
+
+*--Array Errores
+  IF gs_comprobantes-parameters-consultar_cmp_return-array_errores IS NOT INITIAL.
+
+    PERFORM create_mensaje USING ls_error
+                  CHANGING ls_msg.
+
+    LOOP AT gs_comprobantes-parameters-consultar_cmp_return-array_errores-codigo_descripcion INTO ls_error.
+
+      lv_cod = ls_error-codigo.
+
+      CONCATENATE 'Cod:'
+                       lv_cod
+                       ':'
+                       ls_error-descripcion
+                       INTO lv_err SEPARATED BY space.
+
+      ls_msg-context-value = lv_err.
+
+      PERFORM add_log_error USING ls_msg.
+
+      lv_marca = 'X'.
+
+    ENDLOOP.
+
+  ENDIF.
+
+*--Errores de Formato
+  IF gs_comprobantes-parameters-consultar_cmp_return-array_errores_formato IS NOT INITIAL.
+
+    PERFORM create_mensaje_s USING ls_error_s
+                            CHANGING ls_msg.
+
+    LOOP AT gs_comprobantes-parameters-consultar_cmp_return-array_errores_formato-codigo_descripcion_string INTO ls_error_s.
+
+      CONCATENATE 'Cod:'
+                  ls_error_s-codigo
+                  ':'
+                  ls_error_s-descripcion
+                  INTO lv_err SEPARATED BY space.
+
+      ls_msg-context-value = lv_err.
+
+      PERFORM add_log_error USING ls_msg.
+
+      lv_marca = 'X'.
+
+    ENDLOOP.
+
+  ENDIF.
+
+*--Proceso los Comprobantes
+  IF gs_comprobantes-parameters-consultar_cmp_return-array_comprobantes-comprobante IS NOT INITIAL.
+
+    LOOP AT gs_comprobantes-parameters-consultar_cmp_return-array_comprobantes-comprobante INTO ls_comp.
+
+      MOVE-CORRESPONDING ls_comp TO ls_output.
+
+      ls_output-pto_vta = ls_comp-ptovta.
+
+      ls_output-cuit_receptor = ls_comp-cuit_receptor.
+      CONDENSE ls_output-cuit_receptor NO-GAPS.
+
+      ls_output-cuit_emisor = ls_comp-cuit_emisor.
+      CONDENSE ls_output-cuit_emisor NO-GAPS.
+
+      IF ls_comp-estado IS NOT INITIAL.
+        ls_output-estado_cp = ls_comp-estado-estado.
+      ENDIF.
+
+*--Array Motivo de Rechazo
+      IF ls_comp-array_motivos_rechazo-motivo_rechazo IS NOT INITIAL.
+
+        LOOP AT ls_comp-array_motivos_rechazo-motivo_rechazo INTO ls_mot_rec.
+
+          ls_output-cod_motivo = ls_mot_rec-cod_motivo.
+          ls_output-desc_motivo = ls_mot_rec-desc_motivo.
+          ls_output-justificacion =  ls_mot_rec-justificacion.
+
+        ENDLOOP.
+
+      ENDIF.
+
+*--Obtengo letra para XBLNR
+
+      REFRESH gt_comprob_eq.
+      CLEAR ls_comprob_eq.
+
+*--Primero cargo la tabla
+      SELECT DISTINCT *
+        FROM ztb_comprob_eq
+         INTO TABLE gt_comprob_eq.
+
+      CHECK sy-subrc = 0.
+
+** ES UNA ESTRUCTURA CON UNA TABLA ADENTRO
+** read table porque estoy comprando contra una estructura, el ws me devuelve una estructura con una tabla adentro.
+      SORT gt_comprob_eq BY cod_tipo_cmp.
+
+      READ TABLE gt_comprob_eq INTO ls_comprob_eq WITH KEY cod_tipo_cmp = ls_comp-cod_tipo_cmp BINARY SEARCH.
+      IF sy-subrc EQ 0.
+
+        lv_letra = ls_comprob_eq-letra.
+        lv_ptovta = ls_comp-ptovta.
+
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING
+            input  = lv_ptovta
+          IMPORTING
+            output = lv_ptovta.
+
+        lv_nro_cmp8 = ls_comp-nro_cmp.
+
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING
+            input  = lv_nro_cmp8
+          IMPORTING
+            output = lv_nro_cmp8.
+
+*--Armo el XBLNR para 5Lugares
+        CONCATENATE '0'
+                    lv_ptovta
+                    lv_letra
+                    lv_nro_cmp8 INTO lv_xblnr5.
+
+        ls_output-xblnr = lv_xblnr5.
+
+      ENDIF.
+
+      APPEND ls_output TO gt_comprobante.
+
+      CLEAR ls_output.
+
+    ENDLOOP.
+
+  ENDIF.
+
+  IF lv_marca = 'X'.
+
+    WRITE:/ '_______________________________________________________________________'.
+    WRITE:/ 'Hubo errores durante la ejecución. Visualice los Logs'.
+    WRITE:/ '_______________________________________________________________________'.
+
+  ENDIF.
+
+ENDFORM.                    " F_CONSULTAR_COMPROBANTES
+
+*&---------------------------------------------------------------------*
+*&      Form  add_log
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_VL_MSG   text
+*----------------------------------------------------------------------*
+FORM add_log USING p_vl_msg TYPE bal_s_msg.
+
+  CALL FUNCTION 'BAL_LOG_MSG_ADD'
+    EXPORTING
+      i_s_msg       = p_vl_msg
+      i_log_handle  = gv_log_handle
+    EXCEPTIONS
+      log_not_found = 0
+      OTHERS        = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+* save this log
+  INSERT gv_log_handle INTO TABLE gt_log_handle.
+
+  CALL FUNCTION 'BAL_DB_SAVE'
+    EXPORTING
+       i_save_all      = 'X'
+      i_t_log_handle   = gt_log_handle
+*    IMPORTING
+*      e_new_lognumbers = l_t_new_lognumbers
+    EXCEPTIONS
+      OTHERS           = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    "add_log
+*&---------------------------------------------------------------------*
+*&      Form  ADD_LOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_MSG  text
+*----------------------------------------------------------------------*
+FORM f_add_log USING p_ls_salida TYPE ty_salida. "USING pw_log TYPE any.
+
+  DATA: ls_return     TYPE ty_return,
+        ls_msg        TYPE bal_s_msg,
+        vl_count      TYPE numc4,
+        lt_log_handle TYPE bal_t_logh.
+
+  CLEAR: vl_count.
+
+  ls_msg-msgid     = 'YTAX'.
+  ls_msg-msgno     = 951.  "Resultados de la ejecución
+  ls_msg-detlevel  = 1.
+  ls_msg-msgv1     = p_ls_salida-lifnr.
+  ls_msg-msgv2     = p_ls_salida-xblnr_c.
+
+  READ TABLE it_return_aux INTO ls_return INDEX 1.
+
+  IF ls_return-msgid EQ '7Q' AND
+     ls_return-msgnr EQ '333' AND
+     ls_return-msgtyp EQ 'S'.
+
+    ls_msg-msgty = 'I'.
+
+  ELSE.
+
+    IF ls_return-msgtyp NE 'S'.
+      ls_msg-msgty = ls_return-msgtyp.
+    ELSE.
+      ls_msg-msgty = 'W'.
+    ENDIF.
+
+  ENDIF.
+
+  CALL FUNCTION 'BAL_LOG_MSG_ADD'
+    EXPORTING
+      i_s_msg       = ls_msg
+      i_log_handle  = gv_log_handle
+    EXCEPTIONS
+      log_not_found = 0
+      OTHERS        = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  INSERT gv_log_handle INTO TABLE lt_log_handle.
+
+  CALL FUNCTION 'BAL_DB_SAVE'
+    EXPORTING
+       i_save_all      = 'X'
+      i_t_log_handle   = lt_log_handle
+*    IMPORTING
+*      e_new_lognumbers = lt_new_lognumbers
+    EXCEPTIONS
+      OTHERS           = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  ls_msg-detlevel = 2.
+
+  LOOP AT it_return_aux INTO ls_return.
+
+    vl_count = vl_count + 1.
+
+    ls_msg-msgty     = ls_return-msgtyp.
+    ls_msg-msgid     = ls_return-msgid.
+    ls_msg-msgno     = ls_return-msgnr.
+    ls_msg-msgv1     = ls_return-msgv1.
+    ls_msg-msgv2     = ls_return-msgv2.
+    ls_msg-msgv3     = ls_return-msgv3.
+    ls_msg-msgv4     = ls_return-msgv4.
+
+    CALL FUNCTION 'BAL_LOG_MSG_ADD'
+      EXPORTING
+        i_s_msg       = ls_msg
+      EXCEPTIONS
+        log_not_found = 0
+        OTHERS        = 1.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+    INSERT gv_log_handle INTO TABLE lt_log_handle.
+
+    CALL FUNCTION 'BAL_DB_SAVE'
+      EXPORTING
+        i_save_all     = 'X'
+        i_t_log_handle = lt_log_handle
+      EXCEPTIONS
+        OTHERS         = 1.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    "f_add_log
+*&---------------------------------------------------------------------*
+*&      Form  ADD_LOG_ERROR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_MSG  text
+*----------------------------------------------------------------------*
+FORM add_log_error  USING p_vl_msg TYPE bal_s_msg.
+
+  CALL FUNCTION 'BAL_LOG_MSG_ADD_FREE_TEXT'
+    EXPORTING
+      i_log_handle  = gv_log_handle
+      i_msgty       = p_vl_msg-msgty
+      i_text        = p_vl_msg-context-value
+    EXCEPTIONS
+      log_not_found = 0
+      OTHERS        = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  INSERT gv_log_handle INTO TABLE gt_log_handle.
+
+  CALL FUNCTION 'BAL_DB_SAVE'
+    EXPORTING
+      i_save_all     = 'X'
+      i_t_log_handle = gt_log_handle
+    EXCEPTIONS
+      OTHERS         = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    " ADD_LOG_ERROR
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_MENSAJE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_ERROR  text
+*      <--P_LS_MSG  text
+*----------------------------------------------------------------------*
+FORM create_mensaje  USING    p_ls_error TYPE zfc_codigo_descripcion_type
+                     CHANGING p_msg TYPE bal_s_msg.
+  p_msg-msgty = 'E'.
+  p_msg-msgno = 006.
+  p_msg-msgid = 'YTAX'.
+
+ENDFORM.                    " CREATE_MENSAJE
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_MENSAJE_S
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_ERROR_S  text
+*      <--P_LS_MSG  text
+*----------------------------------------------------------------------*
+FORM create_mensaje_s USING p_ls_error TYPE zfc_codigo_descripcion_string
+                    CHANGING p_msg TYPE bal_s_msg.
+
+  DATA: vl_char5  TYPE char5.
+
+  p_msg-msgty = 'E'.
+  p_msg-msgno = 006.
+  p_msg-msgid = 'YTAX'.
+
+ENDFORM.                    " CREATE_MENSAJE_S
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_MSG_ERROR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_LS_MSG  text
+*----------------------------------------------------------------------*
+FORM create_msg_error CHANGING p_msg TYPE bal_s_msg.
+
+  p_msg-msgty = 'E'.
+  p_msg-probclass = ' '.
+  p_msg-msgno = 003.
+  p_msg-msgid = 'YTAX'.
+  p_msg-detlevel = 2.
+
+  p_msg-msgv1 = 'Error insertando registros en tabla ZTB_CONT_COMP'.
+
+ENDFORM.                    " CREATE_MSG_ERROR
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_MSG_LOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_OUTPUT  text
+*      <--P_LS_MSG  text
+*----------------------------------------------------------------------*
+FORM create_msg_log USING p_ls_output TYPE ztb_cont_comp
+                    CHANGING p_msg TYPE bal_s_msg.
+
+  DATA: gt_log_handle TYPE bal_t_logh.
+
+  p_msg-msgty = 'S'.
+  p_msg-probclass = ' '.
+  p_msg-msgno = 005.
+  p_msg-msgid = 'YTAX'.
+  p_msg-detlevel = 2.
+
+  CONCATENATE 'Cod. Cuenta Corriente: ' p_ls_output-cod_cta_cte INTO p_msg-msgv1 SEPARATED BY space.
+  CONCATENATE 'Cod. Tipo Comprobante: ' p_ls_output-cod_tipo_cmp INTO p_msg-msgv2 SEPARATED BY space.
+  CONCATENATE 'Punto Venta: ' p_ls_output-pto_vta INTO p_msg-msgv3 SEPARATED BY space.
+  CONCATENATE 'Nro. Comprobante: ' p_ls_output-nro_cmp INTO p_msg-msgv4 SEPARATED BY space.
+
+ENDFORM.                    " CREATE_MSG_LOG
+
+*&---------------------------------------------------------------------*
+*&      Form  init_controls
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM init_controls.
+
+  IF gr_docking IS INITIAL.
+* Create docking container
+    CREATE OBJECT gr_docking
+      EXPORTING
+*      atributos
+        parent    = cl_gui_container=>screen0
+        dynnr     = '0100'
+*        side      = gr_docking->dock_at_right
+*        extension = 2
+      EXCEPTIONS
+        others    = 6.
+
+    IF sy-subrc  = 0.
+*      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*                 WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+    CALL METHOD gr_docking->set_extension
+      EXPORTING
+        extension  = 99999  " full-screen size !!!
+      EXCEPTIONS
+        cntl_error = 1
+        OTHERS     = 2.
+
+* Link the docking container to the target dynpro
+    gv_repid = syst-repid.
+    CALL METHOD gr_docking->link
+      EXPORTING
+        repid  = gv_repid
+        dynnr  = '0100'
+      EXCEPTIONS
+        OTHERS = 4.
+
+    CREATE OBJECT gr_splitter
+      EXPORTING
+        parent  = gr_docking
+        rows    = 1
+        columns = 2
+        align   = 15.
+
+    CALL METHOD gr_splitter->get_container
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = graphic_parent1.
+
+**   get part of splitter container for 2nd table
+    CALL METHOD gr_splitter->get_container
+      EXPORTING
+        row       = 1
+        column    = 2
+      RECEIVING
+        container = graphic_parent2.
+
+* Create ALV grid
+    CREATE OBJECT gr_grid
+      EXPORTING
+        i_parent = graphic_parent1
+      EXCEPTIONS
+        others   = 5.
+
+  ENDIF.
+ENDFORM.                    "init_controls
+
+*&---------------------------------------------------------------------*
+*&      Form  f_procesar_alv
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_procesar_alv.
+
+  CLEAR: gs_fieldcat, gv_col.
+
+  PERFORM f_fieldcat_itab USING 'CHECKBOX'                 ''           ''         ''.
+  PERFORM f_fieldcat_itab USING 'DESC_MOTIVO'              text-o02     ''         ''.
+  PERFORM f_fieldcat_itab USING 'COD_CTA_CTE'              text-o03     ''         ''.
+  PERFORM f_fieldcat_itab USING 'COD_TIPO_CMP'             text-o04     ''         ''.
+  PERFORM f_fieldcat_itab USING 'PTO_VTA'                  text-o05     ''         ''.
+  PERFORM f_fieldcat_itab USING 'NRO_CMP'                  text-o06     ''         ''.
+  PERFORM f_fieldcat_itab USING 'CUIT_EMISOR'              text-o07     ''         ''.
+  PERFORM f_fieldcat_itab USING 'CUIT_RECEPTOR'            text-o08     ''         ''.
+  PERFORM f_fieldcat_itab USING 'XBLNR_C'                  text-o44     ''         ''.
+  PERFORM f_fieldcat_itab USING 'FECHA_EMISION'            text-o09     ''         ''.
+  PERFORM f_fieldcat_itab USING 'COD_AUTORIZACION'         text-o10     ''         ''.
+  PERFORM f_fieldcat_itab USING 'FECHA_PUESTA_DISPO'       text-o11     ''         ''.
+  PERFORM f_fieldcat_itab USING 'IMPORTE_TOTAL'            text-o12     ''         ''.
+  PERFORM f_fieldcat_itab USING 'COD_MONEDA'               text-o13     ''         ''.
+  PERFORM f_fieldcat_itab USING 'ESTADO_CP'                text-o14     ''         ''.
+  PERFORM f_fieldcat_itab USING 'TIPO_ACEP'                text-o15     ''         ''.
+  PERFORM f_fieldcat_itab USING 'FECHA_HORA_ACEP'          text-o16     ''         ''.
+  PERFORM f_fieldcat_itab USING 'COD_MOTIVO'               text-o17     ''         ''.
+  PERFORM f_fieldcat_itab USING 'JUSTIFICACION'            text-o19     ''         ''.
+  PERFORM f_fieldcat_itab USING 'LIFNR'                    text-o30     ''         'X'.
+  PERFORM f_fieldcat_itab USING 'GJAHR'                    text-o29     ''         ''.
+  PERFORM f_fieldcat_itab USING 'BUKRS'                    text-o22     ''         ''.
+  PERFORM f_fieldcat_itab USING 'BLART'                    text-o25     ''         ''.
+  PERFORM f_fieldcat_itab USING 'WRBTR'                    text-o26     ''         ''.
+  PERFORM f_fieldcat_itab USING 'XBLNR'                    text-o28     ''         ''.
+  PERFORM f_fieldcat_itab USING 'WAERS'                    text-o27     ''         ''.
+  PERFORM f_fieldcat_itab USING 'BELNR'                    text-o23     ''         'X'.
+  PERFORM f_fieldcat_itab USING 'ARCHIVO'                  text-o43     ''         'X'.
+
+
+ENDFORM.                    "f_procesar_alv
+
+*&---------------------------------------------------------------------*
+*&      Form  f_fieldcat_itab
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->L_FIELD    text
+*      -->L_TITLE    text
+*      -->L_KEY      text
+*      -->L_HOTSPOT  text
+*----------------------------------------------------------------------*
+FORM f_fieldcat_itab USING    l_field   TYPE lvc_fname
+                              l_title   TYPE reptext
+                              l_key     TYPE lvc_key
+                              l_hotspot TYPE lvc_hotspt.
+
+  gv_col                    = gv_col + 1.
+  gs_fieldcat-col_pos       = gv_col.
+
+  IF gs_fieldcat-col_pos    = 1.
+    gs_fieldcat-checkbox    = 'X'.
+    gs_fieldcat-inttype     = 'C'.
+    gs_fieldcat-outputlen   = 3.
+    gs_fieldcat-edit        = 'X'.
+    gs_fieldcat-no_out      = 'X'.
+  ENDIF.
+
+  gs_fieldcat-fieldname     = l_field.
+  gs_fieldcat-key           = l_key.
+  gs_fieldcat-tabname       = 'IT_SALIDA'.
+  gs_fieldcat-reptext       = l_title.
+
+*  IF l_field = 'DESC_MOTIVO'.
+*    gs_fieldcat-icon = 'X'.
+*  ENDIF.
+
+  IF l_hotspot = 'X'.
+    gs_fieldcat-hotspot = 'X'.
+  ENDIF.
+
+  APPEND gs_fieldcat TO it_fieldcat.
+  CLEAR gs_fieldcat.
+
+ENDFORM.                    "f_fieldcat_itab
+
+*&---------------------------------------------------------------------*
+*&      Form  set_layout_and_variant
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM set_layout_and_variant.
+
+  CLEAR: gs_layout,
+         gs_variant.
+
+  gs_layout-zebra      = abap_true.
+  gs_layout-cwidth_opt = abap_true.
+  gs_layout-sel_mode   = 'C'.
+
+  gs_variant-report    = syst-repid.
+  gs_variant-handle    = 'GRID'.
+
+ENDFORM.                    "set_layout_and_variant
+
+*&---------------------------------------------------------------------*
+*&      Form  p_print_alv
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_OUTPUT   text
+*----------------------------------------------------------------------*
+FORM p_print_alv.
+
+  DATA: lt_rowid TYPE lvc_t_row,
+        lv_rowid TYPE LINE OF lvc_t_row,
+        lv_number_of_lines TYPE i,
+        ls_salida TYPE ty_salida.
+
+* Display data
+  CALL METHOD gr_grid->set_table_for_first_display
+    EXPORTING
+      i_save          = 'A'
+      is_variant      = gs_variant
+      is_layout       = gs_layout
+    CHANGING
+      it_outtab       = it_salida
+      it_fieldcatalog = it_fieldcat[]
+    EXCEPTIONS
+      OTHERS          = 4.
+
+  CREATE OBJECT gr_event_handler.
+
+  SET HANDLER gr_event_handler->handle_toolbar FOR gr_grid.
+  CALL METHOD gr_grid->set_toolbar_interactive.
+
+  LOOP AT it_salida INTO ls_salida.
+    CHECK ls_salida-belnr IS INITIAL.
+    MOVE sy-tabix TO lv_rowid-index.
+    APPEND lv_rowid TO lt_rowid.
+  ENDLOOP.
+
+*  DESCRIBE TABLE it_salida LINES lv_number_of_lines.
+
+*  DO lv_number_of_lines TIMES.
+*    IF ls_salida-belnr IS NOT INITIAL.
+*      lv_rowid-index = sy-index.
+*      APPEND lv_rowid TO lt_rowid.
+*    ENDIF.
+*  ENDDO.
+
+  CALL METHOD gr_grid->set_selected_rows
+    EXPORTING
+      it_index_rows = lt_rowid.
+
+  CHECK sy-subrc EQ 0.
+
+  SET HANDLER gr_event_handler->handle_hotspot_click FOR gr_grid.
+  SET HANDLER gr_event_handler->handle_user_command FOR gr_grid.
+
+  CALL SCREEN '0100'.
+
+ENDFORM.                    "p_print_alv
+
+*----------------------------------------------------------------------*
+*  MODULE status_0100 OUTPUT
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+MODULE status_0100 OUTPUT.
+
+  SET PF-STATUS 'STANDARD'.
+  SET TITLEBAR 'CONTABILIZACION'.
+
+ENDMODULE.                    "status_0100 OUTPUT
+
+*----------------------------------------------------------------------*
+*  MODULE user_command_0100 INPUT
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+MODULE user_command_0100 INPUT.
+
+  MOVE sy-ucomm TO gv_okcode.
+
+  CASE gv_okcode.
+    WHEN '&F03'
+      OR '&F12'
+      OR '&F15'.
+      SET SCREEN 0. LEAVE SCREEN.
+    WHEN OTHERS.
+  ENDCASE.
+
+  CLEAR gv_okcode.
+
+ENDMODULE.                    "user_command_0100 INPUT
+*&---------------------------------------------------------------------*
+*&      Form  F_MARKED_LINES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_VL_TIPO_EJEC  text
+*----------------------------------------------------------------------*
+FORM f_marked_lines.
+
+  DATA: lt_marked_rows     TYPE lvc_t_roid,
+        vl_umber_of_lines  TYPE i,
+        vl_marked_row      LIKE LINE OF lt_marked_rows.
+
+*  IF sy-batch = 'X'.
+*
+*    IF vl_tipo_ejec = 'J'.
+*      CALL FUNCTION 'BDC_OPEN_GROUP'
+*        EXPORTING
+*          client = sy-mandt
+*          user   = sy-uname
+*          group  = p_juego
+*          keep   = 'X'.
+*    ENDIF.
+
+*    DESCRIBE TABLE gt_comprobante LINES vl_umber_of_lines.
+*
+**           marca todo          *
+*    DO vl_umber_of_lines TIMES.
+*      vl_marked_row-row_id = sy-index.
+*      APPEND vl_marked_row TO lt_marked_rows.
+*    ENDDO.
+*
+*    PERFORM f_process_screen USING gt_comprobante
+*                                   lt_marked_rows.
+
+*  ELSE.
+
+  gr_grid->check_changed_data( ).
+
+  CALL METHOD gr_grid->get_selected_rows
+    IMPORTING
+      et_row_no = lt_marked_rows.
+
+  DESCRIBE TABLE lt_marked_rows LINES vl_umber_of_lines.
+
+  IF vl_umber_of_lines NE 0.
+
+*     abre el batch input      *
+    IF vl_tipo_ejec = 'J'.
+      CALL FUNCTION 'BDC_OPEN_GROUP'
+        EXPORTING
+          client = sy-mandt
+          user   = sy-uname
+          group  = 'ZTAX_ZWS'
+          keep   = 'X'.
+    ENDIF.
+
+    PERFORM f_process_screen USING gt_comprobante
+                                   lt_marked_rows.
+
+    IF vl_tipo_ejec NE 'J'.
+      PERFORM f_log_show.
+    ENDIF.
+
+  ENDIF.
+
+*  ENDIF.
+
+ENDFORM.                    " F_MARKED_LINES
+*&---------------------------------------------------------------------*
+*&      Form  F_LOG_SHOW
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_log_show.
+
+  DATA: vl_fcat TYPE bal_s_fcat.
+  DATA: vl_display_profile TYPE bal_s_prof.
+  DATA: vl_x TYPE c VALUE 'X',
+        vl_2 TYPE c VALUE '2',
+        vl_3 TYPE c VALUE '3',
+        vl_4 TYPE c VALUE '4',
+        vl_5 TYPE c VALUE '5',
+        vl_msgty TYPE dd03p-fieldname VALUE 'MSGTY',
+        vl_msgid TYPE dd03p-fieldname VALUE 'MSGID',
+        vl_msgno TYPE dd03p-fieldname VALUE 'MSGNO',
+        lt_msg   TYPE dd03p-fieldname VALUE 'T_MSG',
+        vl_title LIKE sy-title.
+
+* get variant which creates hierarchy according to field DETLEVEL
+  CALL FUNCTION 'BAL_DSP_PROFILE_DETLEVEL_GET'
+    IMPORTING
+      e_s_display_profile = vl_display_profile
+    EXCEPTIONS
+      OTHERS              = 1.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+             WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+* use grid for display if wanted
+  vl_display_profile-use_grid = vl_x.
+
+*DISPLAYING THE ADDITIONAL FIELDS BY MODIFYING THE FIELDCAT
+  LOOP AT vl_display_profile-mess_fcat INTO vl_fcat.
+
+    IF vl_fcat-ref_field = vl_msgty.
+      vl_fcat-col_pos = vl_2.
+      vl_fcat-no_out  = space.
+    ENDIF.
+
+    IF vl_fcat-ref_field = vl_msgid.
+      vl_fcat-col_pos = vl_3.
+      vl_fcat-no_out  = space.
+    ENDIF.
+
+    IF vl_fcat-ref_field = vl_msgno.
+      vl_fcat-col_pos = vl_4.
+      vl_fcat-no_out  = space.
+    ENDIF.
+
+    IF vl_fcat-ref_field = lt_msg.
+      vl_fcat-col_pos = vl_5.
+      vl_fcat-no_out  = space.
+    ENDIF.
+
+    MODIFY vl_display_profile-mess_fcat FROM vl_fcat.
+
+  ENDLOOP.
+
+* set report to allow saving of variants
+  vl_display_profile-disvariant-report = sy-repid.
+
+* use grid for display if wanted
+  vl_display_profile-use_grid = vl_x.
+
+  vl_title = sy-title.
+
+* Display the title of the Application Log
+  MOVE vl_title TO vl_display_profile-title.                "#EC NOTEXT
+
+* Keep tree on top of the messages list
+  vl_display_profile-tree_ontop = vl_x.
+  vl_display_profile-tree_adjst = vl_x.
+
+  CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
+    EXPORTING
+      i_s_display_profile = vl_display_profile
+    EXCEPTIONS
+      OTHERS              = 1.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+             WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  SET SCREEN 0. LEAVE SCREEN.
+
+ENDFORM.                    " F_LOG_SHOW
+*&---------------------------------------------------------------------*
+*&      Form  f_dynpro
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PW_DYNBEGIN  text
+*      -->PW_NAME      text
+*      -->PW_VALUE     text
+*      -->PT_BDCDATA   text
+*----------------------------------------------------------------------*
+FORM f_dynpro USING pw_dynbegin   TYPE any
+                    pw_name       TYPE any
+                    pw_value      TYPE any
+           CHANGING pt_bdcdata    TYPE ty_t_bdcdata.
+
+  DATA: vl_bdcdata TYPE bdcdata.
+
+  CLEAR vl_bdcdata.
+
+  IF pw_dynbegin = 'X'.
+    MOVE : pw_name  TO vl_bdcdata-program,
+           pw_value TO vl_bdcdata-dynpro,
+           'X'      TO vl_bdcdata-dynbegin.
+    APPEND vl_bdcdata TO pt_bdcdata.
+  ELSE.
+    MOVE : pw_name  TO vl_bdcdata-fnam,
+           pw_value TO vl_bdcdata-fval.
+    APPEND vl_bdcdata TO pt_bdcdata.
+  ENDIF.
+
+ENDFORM.                    "f_dynpro
+*&---------------------------------------------------------------------*
+*&      Form  f_process_screen
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GT_COMPROBANTE  text
+*      -->P_LT_MARKED_ROWS  text
+*----------------------------------------------------------------------*
+FORM f_process_screen  USING    p_gt_comprobante TYPE ts_t_comprobantes
+                                p_lt_marked_rows TYPE lvc_t_roid.
+
+  DATA: vl_numero           TYPE num6,
+        vl_prog             TYPE bdc_prog,
+        vl_marked_row       LIKE LINE OF p_lt_marked_rows,
+        vl_ty_lfbw          TYPE ty_lfbw,
+        vl_monto            TYPE char16,
+        vl_gt_comprobante   TYPE ztb_cont_comp,
+        ls_return           TYPE ty_return,
+        ls_salida           TYPE ty_salida,
+        ls_bkpf             TYPE bkpf,
+        lt_cont_comp        TYPE TABLE OF ztb_cont_comp,
+        lv_bukrs            TYPE bkpf-bukrs,
+        lv_belnr            TYPE bkpf-belnr,
+        lv_gjahr            TYPE bkpf-gjahr.
+
+  CLEAR: vl_marked_row, vl_gt_comprobante, ls_salida, ls_bkpf.
+
+* Obtengo el número de corrida
+  CALL FUNCTION 'NUMBER_GET_NEXT'
+    EXPORTING
+      nr_range_nr = '01'
+      object      = 'Y_COMP'
+      quantity    = '1'
+    IMPORTING
+      number      = vl_numero.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  LOOP AT it_salida INTO ls_salida.
+* Chequeo si se seleccionó la linea
+    READ TABLE p_lt_marked_rows INTO vl_marked_row WITH KEY row_id = sy-tabix.
+
+    IF sy-subrc = 0.
+
+      IF ls_salida-belnr IS NOT INITIAL.
+
+        PERFORM f_add_log_park USING ls_salida.
+
+      ELSEIF ls_salida-lifnr IS INITIAL.
+
+        MESSAGE 'No se pueden parkear documentos sin proveedores' TYPE 'I'.
+        CALL SCREEN '0100'.
+
+      ELSE.
+
+* formateo fechas para realizar la grabación
+        WRITE sy-datum TO vl_c_10.
+        WRITE ls_salida-fecha_emision TO vl_c_c_10.
+        WRITE ls_salida-importe_total TO vl_monto.
+
+        CONDENSE vl_monto NO-GAPS.
+
+        PERFORM f_dynpro USING:
+         'X'  'SAPMF05A'     '1100'                                CHANGING it_bdctab,
+         ' '  'RF05A-BUSCS'   'R'                                  CHANGING it_bdctab,
+         ' '  'INVFO-ACCNT'   ls_salida-lifnr                      CHANGING it_bdctab,
+         ' '  'INVFO-BLDAT'   vl_c_c_10                            CHANGING it_bdctab,
+         ' '  'INVFO-XBLNR'   ls_salida-xblnr_c                    CHANGING it_bdctab,
+         ' '  'INVFO-BUDAT'   vl_c_10                              CHANGING it_bdctab,
+         ' '  'INVFO-BLART'   'KR'                                 CHANGING it_bdctab,
+         ' '  'INVFO-WRBTR'   vl_monto                             CHANGING it_bdctab,
+         ' '  'INVFO-WAERS'   ls_salida-cod_moneda                 CHANGING it_bdctab,
+         ' '  'INVFO-XMWST'   'X'                                  CHANGING it_bdctab,
+         ' '  'BDC_OKCODE'   '=BP'                                 CHANGING it_bdctab.
+
+        IF vl_tipo_ejec = 'J'.
+
+          CALL FUNCTION 'BDC_INSERT'
+            EXPORTING
+              tcode     = 'FV60'
+            TABLES
+              dynprotab = it_bdctab.
+
+          vl_ty_lfbw-bi = 'X'.
+
+        ELSE.
+
+          PERFORM f_call_transaction USING 'FV60'
+                                           it_bdctab
+                                  CHANGING it_return_aux.
+
+          PERFORM f_add_log USING ls_salida. "USING vl_marked_row-row_id.
+
+          PERFORM f_progress USING ls_salida-lifnr.
+
+        ENDIF.
+* para obtener el belnr generado en cada iteracion
+        READ TABLE it_return_aux INTO ls_return WITH KEY msgid = 'FP'
+                                                         msgnr = '001' BINARY SEARCH.
+
+        IF sy-subrc EQ 0.
+
+          MOVE-CORRESPONDING ls_salida TO vl_gt_comprobante.
+
+          MOVE: ls_return-msgv2 TO lv_bukrs,
+                ls_return-msgv1 TO lv_belnr,
+                vl_c_10+6(4)    TO lv_gjahr.
+
+          SELECT SINGLE blart waers xblnr belnr bukrs gjahr
+            FROM bkpf
+            INTO CORRESPONDING FIELDS OF ls_bkpf
+            WHERE bukrs = lv_bukrs
+              AND belnr = lv_belnr
+              AND gjahr = lv_gjahr.
+
+          CHECK sy-subrc EQ 0.
+
+          CLEAR gv_band.
+
+          PERFORM f_gos USING ls_bkpf
+                              ls_salida
+                     CHANGING gv_band.
+
+          IF gv_band NE 'X'.
+            ls_salida-archivo = ''.
+            MODIFY it_salida FROM ls_salida TRANSPORTING archivo.
+            ENDIF.
+
+          vl_gt_comprobante-bukrs = ls_bkpf-bukrs.
+          vl_gt_comprobante-belnr = ls_bkpf-belnr.
+          vl_gt_comprobante-gjahr = ls_bkpf-gjahr.
+          vl_gt_comprobante-blart = ls_bkpf-blart.
+          vl_gt_comprobante-wrbtr = ls_salida-importe_total.
+          vl_gt_comprobante-waers = ls_bkpf-waers.
+          vl_gt_comprobante-xblnr = ls_bkpf-xblnr.
+          vl_gt_comprobante-transac = 'ZWS_CONTAB_COMP'.
+
+          APPEND vl_gt_comprobante TO lt_cont_comp.
+
+          PERFORM f_insert_table USING lt_cont_comp.
+
+        ENDIF.
+
+      ENDIF.
+
+      CLEAR: vl_c_10,
+             vl_c_c_10,
+             vl_monto,
+             ls_bkpf,
+             lv_belnr,
+             lv_bukrs,
+             lv_gjahr.
+
+    ENDIF.
+
+    REFRESH: it_bdctab,
+             it_return_aux,
+             lt_cont_comp.
+
+  ENDLOOP.
+
+  IF vl_tipo_ejec = 'J'.
+
+    CALL FUNCTION 'BDC_CLOSE_GROUP'.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+
+      MESSAGE i904.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    "f_process_screen
+
+*&---------------------------------------------------------------------*
+*&      Form  f_call_transaction
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PW_TRANSACTION  text
+*      -->PT_BDCDATA      text
+*      -->PT_RETURN_AUX   text
+*----------------------------------------------------------------------*
+FORM f_call_transaction  USING     pw_transaction TYPE any
+                                   pt_bdcdata    TYPE ty_t_bdcdata
+                         CHANGING  pt_return_aux TYPE ty_t_return.
+
+  DATA: vl_mode(1) TYPE c.
+
+  vl_mode = 'N'.
+
+  CALL TRANSACTION pw_transaction
+        USING      pt_bdcdata
+        MODE       vl_mode
+        UPDATE     'S'
+        MESSAGES
+   INTO pt_return_aux.
+
+ENDFORM.                    "f_call_transaction
+
+*&---------------------------------------------------------------------*
+*&      Form  f_llamar_proveedor
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->L_ROW      text
+*----------------------------------------------------------------------*
+FORM f_llamar_proveedor USING l_row TYPE lvc_s_row-index.
+
+  DATA vl_salida TYPE ty_salida.
+
+  READ TABLE it_salida INTO vl_salida INDEX l_row.
+  CHECK ( vl_salida-lifnr IS NOT INITIAL ).
+
+  SET PARAMETER ID 'LIF' FIELD vl_salida-lifnr.
+  SET PARAMETER ID 'BUK' FIELD p_bukrs.
+  CALL TRANSACTION 'FK03'.
+
+ENDFORM.                    "f_llamar_proveedor
+*&---------------------------------------------------------------------*
+*&      Form  f_buscar_documento
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->L_ROW      text
+*----------------------------------------------------------------------*
+FORM f_buscar_documento USING l_row TYPE lvc_s_row-index.
+
+  DATA vl_salida TYPE ty_salida.
+
+  READ TABLE it_salida INTO vl_salida INDEX l_row.
+  CHECK ( vl_salida-belnr IS NOT INITIAL ).
+
+  SET PARAMETER ID 'BLN' FIELD vl_salida-belnr.
+  SET PARAMETER ID 'BUK' FIELD vl_salida-bukrs.
+  SET PARAMETER ID 'GJR' FIELD vl_salida-gjahr.
+  CALL TRANSACTION 'FB03'.
+
+ENDFORM.                    "f_buscar_documento
+*&---------------------------------------------------------------------*
+*&      Form  F_PROCESAR_DATO_MAESTRO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_procesar_datos.
+
+  DATA: lt_lifnr      TYPE ts_t_lifnr.
+
+  DATA: ls_salida          TYPE ty_salida,
+        ls_gt_comprobante  TYPE ztb_cont_comp,
+        ls_lifnr           TYPE ty_lifnr,
+        ls_doc_park        TYPE ztb_cont_comp,
+        ls_tabla_logs      TYPE ztb_cont_comp.
+
+  CLEAR: ls_lifnr,
+         ls_gt_comprobante,
+         ls_salida.
+
+  REFRESH: it_salida, lt_lifnr.
+
+  SORT gt_comprobante BY cuit_emisor.
+  CHECK gt_comprobante IS NOT INITIAL.
+
+* busco cuit del proveedor de la sociedad elegida
+  SELECT b~stcd1 a~lifnr
+    INTO CORRESPONDING FIELDS OF TABLE lt_lifnr
+      FROM lfb1 AS a
+    INNER JOIN lfa1 AS b
+      ON a~lifnr = b~lifnr
+      FOR ALL ENTRIES IN gt_comprobante
+       WHERE b~stcd1 = gt_comprobante-cuit_emisor
+         AND a~bukrs = p_bukrs
+         AND b~stcd1 NE space.
+
+*  CHECK sy-subrc EQ 0.
+
+  SORT gt_comprobante BY cod_cta_cte cod_tipo_cmp pto_vta nro_cmp.
+
+* consulto tabla parkeados
+  SELECT *
+    FROM ztb_cont_comp
+      INTO CORRESPONDING FIELDS OF TABLE gt_doc_park
+    FOR ALL ENTRIES IN gt_comprobante
+      WHERE cod_cta_cte  = gt_comprobante-cod_cta_cte
+        AND cod_tipo_cmp = gt_comprobante-cod_tipo_cmp
+        AND pto_vta      = gt_comprobante-pto_vta
+        AND nro_cmp      = gt_comprobante-nro_cmp
+        AND belnr        NE ''.
+*        AND transac      = 'ZWS_CONTAB_COMP'.
+
+*  CHECK sy-subrc EQ 0.
+
+  SORT lt_lifnr BY stcd1.
+
+  SORT gt_doc_park BY cod_cta_cte cod_tipo_cmp pto_vta.
+
+  LOOP AT gt_comprobante INTO ls_gt_comprobante.
+
+    READ TABLE lt_lifnr INTO ls_lifnr WITH KEY stcd1 = ls_gt_comprobante-cuit_emisor BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      ls_salida-lifnr                =   ls_lifnr-lifnr.
+    ENDIF.
+
+    ls_salida-cod_cta_cte            =   ls_gt_comprobante-cod_cta_cte.
+    ls_salida-cod_tipo_cmp           =   ls_gt_comprobante-cod_tipo_cmp.
+    ls_salida-pto_vta                =   ls_gt_comprobante-pto_vta.
+    ls_salida-nro_cmp                =   ls_gt_comprobante-nro_cmp.
+    ls_salida-cuit_emisor            =   ls_gt_comprobante-cuit_emisor.
+    ls_salida-cuit_receptor          =   ls_gt_comprobante-cuit_receptor.
+    ls_salida-fecha_emision          =   ls_gt_comprobante-fecha_emision.
+    ls_salida-cod_autorizacion       =   ls_gt_comprobante-cod_autorizacion.
+    ls_salida-fecha_puesta_dispo     =   ls_gt_comprobante-fecha_puesta_dispo.
+    ls_salida-importe_total          =   ls_gt_comprobante-importe_total.
+    ls_salida-estado_cp              =   ls_gt_comprobante-estado_cp.
+    ls_salida-tipo_acep              =   ls_gt_comprobante-tipo_acep.
+    ls_salida-fecha_hora_acep        =   ls_gt_comprobante-fecha_hora_acep.
+    ls_salida-cod_motivo             =   ls_gt_comprobante-cod_motivo.
+    ls_salida-desc_motivo            =   ls_gt_comprobante-desc_motivo.
+    ls_salida-justificacion          =   ls_gt_comprobante-justificacion.
+    ls_salida-xblnr_c                =   ls_gt_comprobante-xblnr.
+
+    READ TABLE gt_doc_park INTO ls_doc_park WITH KEY cod_cta_cte = ls_gt_comprobante-cod_cta_cte
+                                                     cod_tipo_cmp = ls_gt_comprobante-cod_tipo_cmp
+                                                     nro_cmp = ls_gt_comprobante-nro_cmp
+                                                     pto_vta = ls_gt_comprobante-pto_vta BINARY SEARCH.
+
+    IF sy-subrc EQ 0.
+*      WRITE icon_led_green AS ICON TO ls_salida-icon.
+      ls_salida-bukrs = ls_doc_park-bukrs.
+      ls_salida-belnr = ls_doc_park-belnr.
+      ls_salida-gjahr = ls_doc_park-gjahr.
+      ls_salida-blart = ls_doc_park-blart.
+      ls_salida-wrbtr = ls_doc_park-wrbtr.
+      ls_salida-waers = ls_doc_park-waers.
+      ls_salida-xblnr = ls_doc_park-xblnr.
+    ELSE.
+*      WRITE icon_led_red AS ICON TO ls_salida-icon.
+    ENDIF.
+
+* conversion de monedas a ingresar a FV60
+    IF ls_gt_comprobante-cod_moneda  = 'PES'.
+      ls_salida-cod_moneda           = 'ARS'.
+    ELSEIF ls_gt_comprobante-cod_moneda = 'DOL'.
+      ls_salida-cod_moneda = 'USD'.
+    ENDIF.
+
+    APPEND ls_salida TO it_salida.
+
+    CLEAR: ls_salida, ls_gt_comprobante, ls_lifnr.
+
+  ENDLOOP.
+
+ENDFORM.                    "f_procesar_dato_maestro
+
+*&---------------------------------------------------------------------*
+*&      Form  f_progress
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_TEXT     text
+*----------------------------------------------------------------------*
+FORM f_progress  USING    p_text    TYPE any.
+
+  CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
+    EXPORTING
+      text = p_text.
+
+ENDFORM.                    "f_progress
+*&---------------------------------------------------------------------*
+*&      Form  F_SET_TABLE_MAIL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_IT_RETURN_AUX  text
+*      -->P_LS_LIFNR_LIFNR  text
+*----------------------------------------------------------------------*
+*FORM f_set_table_mail USING  ls_salida TYPE ty_salida
+*                             p_numero TYPE num6.
+*
+*  DATA: vl_message       LIKE bapiret2-message,
+*        vl_message_v1    LIKE bapiret2-message_v1,
+*        vl_message_v2    LIKE bapiret2-message_v2,
+*        vl_message_v3    LIKE bapiret2-message_v3,
+*        vl_message_v4    LIKE bapiret2-message_v4,
+*        vl_id            LIKE bapiret2-id,
+*        vl_number        LIKE bapiret2-number,
+*        vl_return_aux    TYPE ty_return,
+*        vl_mail_output   TYPE ty_mail_output.
+*
+*  REFRESH it_mail_output.
+*
+*  vl_id         = 'YTAX'.
+*  vl_number     = 907.
+*  vl_message_v1 = ls_salida-lifnr.
+*  vl_message_v2 = ls_salida-cuit_emisor.
+*
+*  CALL FUNCTION 'BAPI_MESSAGE_GETDETAIL'
+*  EXPORTING
+*    id                = vl_id
+*    number            = vl_number
+*    language          = sy-langu
+*    textformat        = 'ASC'
+**     LINKPATTERN       =
+*    message_v1        = vl_message_v1
+*    message_v2        = vl_message_v2
+*    message_v3        = vl_message_v3
+**    message_v4        = vl_message_v4
+* IMPORTING
+*    message           = vl_message
+**     RETURN            =
+**   TABLES
+**     TEXT              =
+*          .
+*
+*  CONCATENATE vl_mail_output-msj
+*              vl_message '.'
+*         INTO vl_mail_output-msj
+*    SEPARATED BY space.
+*
+*  IF sy-batch IS NOT INITIAL.
+*    WRITE:/ vl_message.
+*    CLEAR vl_message.
+*  ENDIF.
+*
+*  CLEAR: vl_id,
+*         vl_number,
+*         vl_message_v1,
+*         vl_message_v2,
+*         vl_message_v3.
+*
+*  LOOP AT it_return_aux INTO vl_return_aux.
+*
+*    vl_id         = vl_return_aux-msgid.
+*    vl_number     = vl_return_aux-msgnr.
+*    vl_message_v1 = vl_return_aux-msgv1.
+*    vl_message_v2 = vl_return_aux-msgv2.
+*    vl_message_v3 = vl_return_aux-msgv3.
+*    vl_message_v4 = vl_return_aux-msgv4.
+*
+*    CALL FUNCTION 'BAPI_MESSAGE_GETDETAIL'
+*      EXPORTING
+*        id                = vl_id
+*        number            = vl_number
+*        language          = sy-langu
+*        textformat        = 'ASC'
+**     LINKPATTERN       =
+*        message_v1        = vl_message_v1
+*        message_v2        = vl_message_v2
+*        message_v3        = vl_message_v3
+*        message_v4        = vl_message_v4
+*     IMPORTING
+*        message           = vl_message
+**     RETURN            =
+**   TABLES
+**     TEXT              =
+*              .
+*
+*    CONCATENATE vl_mail_output-msj
+*                vl_message '.'
+*           INTO vl_mail_output-msj
+*      SEPARATED BY space.
+*
+*    IF sy-batch IS NOT INITIAL.
+*      WRITE:/ vl_message.
+*      CLEAR vl_message.
+*    ENDIF.
+*
+*  ENDLOOP.
+*
+*  IF sy-batch IS NOT INITIAL.
+*    ULINE.
+*  ENDIF.
+*
+*  vl_mail_output-corrida = p_numero.
+*  vl_mail_output-prov = ls_salida-lifnr.
+*
+*  APPEND vl_mail_output TO it_mail_output.
+*
+*ENDFORM.                    "f_set_table_mail
+*&---------------------------------------------------------------------*
+*&      Form  F_INSERT_TABLE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_insert_table USING p_lt_cont_comp TYPE ts_t_comprobantes.
+
+  INSERT ztb_cont_comp FROM TABLE p_lt_cont_comp.
+
+ENDFORM.                    " F_INSERT_TABLE
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SEND_MAIL_LOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+*FORM zf_send_mail_log.
+*
+*  DATA: vl_doc_chng        LIKE sodocchgi1,
+*        lt_objtxt          TYPE TABLE OF solisti1 WITH HEADER LINE,
+*        lt_objpack         TYPE TABLE OF sopcklsti1,
+*        lt_dest            TYPE TABLE OF  somlreci1 ,
+*        lt_texto           TYPE TABLE OF solisti1,
+*        lt_objbin          TYPE TABLE OF solisti1 WITH HEADER LINE,
+*        lt_objhead         TYPE TABLE OF solisti1 WITH HEADER LINE,
+*        vl_mail            TYPE ty_mail_output,
+*        vl_objtxt          LIKE LINE OF lt_objtxt,
+*        vl_objpack         LIKE LINE OF lt_objpack,
+*        vl_lt_dest         LIKE LINE OF lt_dest,
+*        vl_tab_lines       LIKE sy-tabix,
+*        vl_sent_to_all     LIKE sonv-flag.
+*
+*  REFRESH lt_dest.
+*  LOOP AT s_mailf.
+*    CLEAR vl_lt_dest.
+*    vl_lt_dest-receiver = s_mailf-low.
+*    vl_lt_dest-rec_type = 'U'.
+*    vl_lt_dest-express  = 'X'.
+*    APPEND vl_lt_dest TO lt_dest.
+*  ENDLOOP.
+*
+*  CLEAR   vl_doc_chng.
+*
+** Título del Mensaje de Correo
+*  vl_doc_chng-obj_name   = ''.
+*  vl_doc_chng-obj_descr  = text-o35.
+*  vl_doc_chng-to_do_out  = 'X'.
+*
+**-- Armo xls
+*  CONCATENATE 'Corrida' 'Proveedor'  'Mensaje'
+*         INTO lt_objbin-line SEPARATED BY cl_abap_char_utilities=>horizontal_tab.
+*
+*  CONCATENATE lt_objbin-line
+*              cl_abap_char_utilities=>cr_lf
+*         INTO lt_objbin-line.
+*
+*  lt_objtxt-line = lt_objbin-line.
+*
+*  APPEND lt_objbin.
+*  APPEND lt_objtxt.
+*  CLEAR: lt_objbin, lt_objtxt.
+*
+*  CONCATENATE lt_objbin
+*              cl_abap_char_utilities=>newline
+*         INTO lt_objbin.
+*
+*  lt_objtxt-line = lt_objbin-line.
+*
+*  APPEND: lt_objbin, lt_objtxt.
+*  CLEAR: lt_objbin, lt_objtxt.
+*
+*  LOOP AT  it_mail_output INTO vl_mail.
+*
+*    CONCATENATE vl_mail-corrida
+*                vl_mail-prov
+*                vl_mail-msj
+*           INTO lt_objbin-line SEPARATED BY cl_abap_char_utilities=>horizontal_tab.
+*
+*    CONCATENATE lt_objbin-line
+*                cl_abap_char_utilities=>cr_lf
+*           INTO lt_objbin-line.
+*
+*    lt_objtxt-line = lt_objbin-line.
+*
+*    APPEND lt_objbin.
+*    APPEND lt_objtxt.
+*    CLEAR: lt_objbin,
+*           lt_objtxt,
+*           vl_mail.
+*  ENDLOOP.
+*
+*  CONCATENATE 'CONTABILIZAR COMP'
+*              '_'
+*              sy-datum
+*              '.xls'
+*         INTO lt_objhead.
+*
+*  APPEND lt_objhead.
+*
+*  DESCRIBE TABLE lt_objtxt LINES vl_tab_lines.
+*  READ TABLE lt_objtxt INTO vl_objtxt INDEX vl_tab_lines.
+*  vl_doc_chng-doc_size = ( vl_tab_lines ) * 255 + strlen( vl_objtxt ).
+*
+** Tipo Doc: TEXTO
+*  CLEAR vl_objpack-transf_bin.
+** Documento sin cabecera
+*  vl_objpack-head_start = 1.
+*  vl_objpack-head_num = 0.
+** Definicion del Cuerpo
+*  vl_objpack-body_start = 1.
+*  vl_objpack-body_num = vl_tab_lines.
+** de tipo RAW
+*  vl_objpack-doc_type = 'RAW'.
+*
+*  APPEND vl_objpack TO lt_objpack.
+*
+**-- New
+*  vl_objpack-transf_bin = 'X'.
+*  vl_objpack-head_num = 1.
+*  vl_objpack-doc_type   = 'XLS'.
+*  vl_objpack-obj_name   = 'XLS'.
+*
+*  CONCATENATE 'CONTABILIZAR COMP'
+*              sy-datum
+*         INTO vl_objpack-obj_descr .
+*
+*  APPEND vl_objpack TO lt_objpack.
+*
+*  IF NOT lt_dest[] IS INITIAL AND NOT lt_objtxt[] IS INITIAL.
+*
+*    CALL FUNCTION 'SO_NEW_DOCUMENT_ATT_SEND_API1'
+*      EXPORTING
+*        document_data              = vl_doc_chng
+*        put_in_outbox              = 'X'
+*        commit_work                = 'X'
+*      IMPORTING
+*        sent_to_all                = vl_sent_to_all
+*      TABLES
+*        packing_list               = lt_objpack
+*        contents_txt               = lt_objtxt
+*        receivers                  = lt_dest
+*        object_header              = lt_objhead
+*        contents_bin               = lt_objbin
+*      EXCEPTIONS
+*        too_many_receivers         = 1
+*        document_not_sent          = 2
+*        operation_no_authorization = 4
+*        OTHERS                     = 99.
+*
+*    IF sy-subrc <> 0.
+*      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+*    ENDIF.
+*
+*  ENDIF.
+*
+*  REFRESH: lt_dest,
+*           lt_objpack,
+*           lt_texto,
+*           lt_objtxt.
+*  CLEAR: vl_doc_chng.
+*
+*ENDFORM.                    " ZF_SEND_MAIL_LOG
+*&---------------------------------------------------------------------*
+*&      Form  F_VISUALIZO_LOGS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_visualizo_logs USING tabla TYPE char20.
+
+*-- Creo la tabla que le paso al submit con todos los parametros,
+  DATA: lt_rsparams TYPE TABLE OF rsparams,
+        vl_rsparams TYPE rsparams.
+
+  CASE tabla.
+    WHEN 'ZTB_CONT_COMP'.
+      vl_rsparams-selname = 'P_TABLE'.
+      vl_rsparams-kind = 'P'.
+      vl_rsparams-sign = 'I'.
+      vl_rsparams-option = 'EQ'.
+      vl_rsparams-low = tabla.
+      APPEND vl_rsparams TO lt_rsparams.
+      SUBMIT ztax_mostrar_tabla_log WITH SELECTION-TABLE lt_rsparams AND RETURN.
+  ENDCASE.
+
+ENDFORM.                    " F_VISUALIZO_LOGS
+*&---------------------------------------------------------------------*
+*&      Form  F_ESTADO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_vista_estado.
+
+  DATA: name TYPE vrm_id,
+        list TYPE vrm_values,
+        value TYPE vrm_value.
+
+  REFRESH list.
+  CLEAR value.
+
+  name = 'LST_STAT'.
+  value-key = '1'.
+  value-text = 'DOCUMENTOS PARKEADOS'.
+  APPEND value TO list.
+
+  CLEAR value.
+
+  value-key = '2'.
+  value-text = 'DOCUMENTOS NO PARKEADOS'.
+  APPEND value TO list.
+
+  CLEAR value.
+
+  value-key = '3'.
+  value-text = 'TODOS'.
+  APPEND value TO list.
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id              = name
+      values          = list
+    EXCEPTIONS
+      id_illegal_name = 0
+      OTHERS          = 0.
+
+ENDFORM.                    "f_vista_estado
+*&---------------------------------------------------------------------*
+*&      Form  F_VALIDAR_LISTA_ESTADO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_validar_lista_estado.
+
+  DATA ls_salida TYPE ty_salida.
+
+  CLEAR ls_salida.
+
+  LOOP AT it_salida INTO ls_salida.
+    IF ls_salida-belnr IS NOT INITIAL.
+      CONCATENATE icon_system_okay
+                  text-o40 "parkeados
+             INTO ls_salida-desc_motivo SEPARATED BY space.
+      MODIFY it_salida FROM ls_salida TRANSPORTING desc_motivo.
+    ELSE.
+      CONCATENATE icon_dummy
+                  text-o41 "sin parkear
+             INTO ls_salida-desc_motivo SEPARATED BY space.
+      MODIFY it_salida FROM ls_salida TRANSPORTING desc_motivo.
+    ENDIF.
+    CLEAR ls_salida.
+  ENDLOOP.
+
+  SORT it_salida BY belnr.
+
+  CASE lst_stat.
+    WHEN '1'.
+      DELETE it_salida WHERE belnr IS INITIAL.
+    WHEN '2'.
+      DELETE it_salida WHERE belnr IS NOT INITIAL.
+  ENDCASE.
+
+ENDFORM.                    " F_VALIDAR_LISTA_ESTADO
+*&---------------------------------------------------------------------*
+*&      Form  f_add_log_park
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_SALIDA  text
+*----------------------------------------------------------------------*
+FORM f_add_log_park USING p_ls_salida TYPE ty_salida.
+
+  DATA: ls_msg        TYPE bal_s_msg,
+        vl_count      TYPE numc4,
+        lt_log_handle TYPE bal_t_logh,
+        ls_salida     TYPE ty_salida.
+
+  ls_msg-detlevel = 1.
+
+  ls_msg-msgty     = 'E'.
+  ls_msg-msgid     = 'YTAX'.
+  ls_msg-msgno     = 949.
+  ls_msg-msgv1     = p_ls_salida-nro_cmp.
+  ls_msg-msgv2     = p_ls_salida-pto_vta.
+  ls_msg-msgv3     = p_ls_salida-cod_tipo_cmp.
+  ls_msg-msgv4     = p_ls_salida-belnr.
+
+  CALL FUNCTION 'BAL_LOG_MSG_ADD'
+    EXPORTING
+      i_s_msg       = ls_msg
+      i_log_handle  = gv_log_handle
+    EXCEPTIONS
+      log_not_found = 0
+      OTHERS        = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  INSERT gv_log_handle INTO TABLE lt_log_handle.
+
+  CALL FUNCTION 'BAL_DB_SAVE'
+    EXPORTING
+       i_save_all      = 'X'
+      i_t_log_handle   = lt_log_handle
+*    IMPORTING
+*      e_new_lognumbers = lt_new_lognumbers
+    EXCEPTIONS
+      OTHERS           = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    "f_add_log_park
+*&---------------------------------------------------------------------*
+*&      Form  F_READ_FILE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_<FS_ITAB>  text
+*----------------------------------------------------------------------*
+FORM f_read_file.
+
+  DATA: vl_file     TYPE string,
+        vl_table    TYPE ty_table.
+
+  REFRESH: it_string, it_txt.
+
+  CLEAR: vl_file, vl_table.
+  vl_file = p_txt.
+
+  PERFORM f_progress USING  text-o30.
+
+  CALL METHOD cl_gui_frontend_services=>gui_upload
+    EXPORTING
+      filename                = vl_file
+      filetype                = 'ASC'
+      has_field_separator     = ''
+    CHANGING
+      data_tab                = it_string
+    EXCEPTIONS
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      not_supported_by_gui    = 17
+      error_no_gui            = 18
+      OTHERS                  = 19.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+
+  LOOP AT it_string INTO vl_file.
+    SPLIT vl_file AT ';' INTO vl_table-archivo
+                              vl_table-evidencia
+                              vl_table-pdf
+                              vl_table-oc
+                              vl_table-cuit
+                              vl_table-doc
+
+                              vl_table-cae
+                              vl_table-caea
+                              vl_table-cai.
+
+    REPLACE ALL OCCURRENCES OF '...' IN vl_table-archivo WITH ''.
+
+    APPEND vl_table TO it_txt.
+    CLEAR vl_file.
+  ENDLOOP.
+
+ENDFORM.                    " F_READ_FILE
+*&---------------------------------------------------------------------*
+*&      Form  LLAMO_TRANSACCION_EQ
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM llamo_transaccion_eq .
+
+  CALL FUNCTION 'VIEW_MAINTENANCE_CALL'
+    EXPORTING
+      action                       = 'S'
+      view_name                    = 'ZTB_CONTAB_EQ'
+    EXCEPTIONS
+      client_reference             = 1
+      foreign_lock                 = 2
+      invalid_action               = 3
+      no_clientindependent_auth    = 4
+      no_database_function         = 5
+      no_editor_function           = 6
+      no_show_auth                 = 7
+      no_tvdir_entry               = 8
+      no_upd_auth                  = 9
+      only_show_allowed            = 10
+      system_failure               = 11
+      unknown_field_in_dba_sellist = 12
+      view_not_found               = 13
+      maintenance_prohibited       = 14
+      OTHERS                       = 15.
+
+  IF sy-subrc NE 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    " LLAMO_TRANSACCION_EQ
+*&---------------------------------------------------------------------*
+*&      Form  F_PROCESO_XBLNR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_proceso_xblnr.
+
+  DATA: vl_table TYPE ty_table,
+        vl_xblnr TYPE xblnr,
+        vl_pv_4 TYPE char4,
+        vl_pv_5 TYPE char5,
+        vl_nro_comp TYPE char8,
+        vl_table_aux TYPE ty_table,
+        lv_marca TYPE char1,
+        vl_contab_eq TYPE ztb_contab_eq,
+        lt_contab_eq TYPE TABLE OF ztb_contab_eq,
+        vl_pv_str TYPE string,
+        vl_pv_aux TYPE xblnr,
+        ls_msg TYPE bal_s_msg.
+
+  CLEAR ls_msg.
+
+  SELECT *
+    FROM ztb_contab_eq
+    INTO TABLE lt_contab_eq.
+
+  DELETE it_txt INDEX 1.
+  DELETE it_txt WHERE doc = 'False'.
+
+  SORT: it_txt BY doc,
+        lt_contab_eq BY cod_tipo_cmp.
+
+  LOOP AT it_txt INTO vl_table.
+
+    vl_xblnr = vl_table-doc.
+    CLEAR: vl_pv_4, vl_pv_5.
+
+    IF vl_xblnr CS '-'.
+
+*Para 4 Posiciones
+      IF vl_xblnr+4(1) = '-'.
+
+        vl_pv_4 = vl_xblnr+0(4).
+
+        READ TABLE lt_contab_eq INTO vl_contab_eq WITH KEY cod_tipo_cmp = vl_pv_4.
+        IF sy-subrc EQ 0.
+          REPLACE ALL OCCURRENCES OF '-' IN vl_table-doc WITH vl_contab_eq-letra.
+          MODIFY it_txt FROM vl_table.
+        ELSE.
+*          lv_marca = 'X'.
+          PERFORM error_equiv USING vl_pv_4
+                                    vl_pv_5
+                              CHANGING ls_msg.
+        ENDIF.
+
+      ELSEIF vl_xblnr+5(1) = '-'.
+
+        vl_pv_5 = vl_xblnr+0(5).
+        READ TABLE lt_contab_eq INTO vl_contab_eq WITH KEY cod_tipo_cmp = vl_pv_5.
+        IF sy-subrc EQ 0.
+          REPLACE ALL OCCURRENCES OF '-' IN vl_table-doc WITH vl_contab_eq-letra.
+          MODIFY it_txt FROM vl_table.
+        ELSE.
+*          lv_marca = 'X'.
+          PERFORM error_equiv USING vl_pv_4
+                                    vl_pv_5
+                              CHANGING ls_msg.
+        ENDIF.
+      ENDIF.
+
+    ELSE.
+
+      SHIFT vl_xblnr RIGHT DELETING TRAILING space.
+      vl_pv_str = vl_xblnr+0(8).
+      CONDENSE vl_pv_str NO-GAPS.
+      vl_pv_4 = vl_pv_str.
+
+      SHIFT vl_pv_4 RIGHT DELETING TRAILING space.
+      TRANSLATE vl_pv_4 USING ' 0'.
+
+      READ TABLE lt_contab_eq INTO vl_contab_eq WITH KEY cod_tipo_cmp = vl_pv_4.
+      IF sy-subrc EQ 0.
+        CONCATENATE vl_pv_4 vl_contab_eq-letra vl_xblnr+8(8) INTO vl_pv_aux.
+        vl_table-doc = vl_pv_aux.
+        MODIFY it_txt FROM vl_table.
+      ELSE.
+*        lv_marca = 'X'.
+        PERFORM error_equiv USING vl_pv_4
+                                  vl_pv_5
+                            CHANGING ls_msg.
+      ENDIF.
+
+      vl_pv_5 = vl_pv_4.
+      SHIFT vl_pv_5 RIGHT DELETING TRAILING space.
+      TRANSLATE vl_pv_5 USING ' 0'.
+
+      READ TABLE lt_contab_eq INTO vl_contab_eq WITH KEY cod_tipo_cmp = vl_pv_5.
+      IF sy-subrc EQ 0.
+        CONCATENATE vl_pv_5 vl_contab_eq-letra vl_xblnr+8(8) INTO vl_pv_aux.
+        vl_table-doc_5 = vl_pv_aux.
+        MODIFY it_txt FROM vl_table.
+      ELSE.
+*        lv_marca = 'X'.
+        PERFORM error_equiv USING vl_pv_4
+                                  vl_pv_5
+                            CHANGING ls_msg.
+      ENDIF.
+
+      CLEAR: vl_pv_4, vl_pv_5, vl_table, vl_xblnr, vl_pv_str, vl_pv_aux, vl_nro_comp.
+    ENDIF.
+
+  ENDLOOP.
+
+*  IF lv_marca = 'X'.
+
+  IF it_msg IS NOT INITIAL.
+
+    PERFORM add_log_pv_err.
+
+* 'Verifique equivalencia en unto de venta. Visualice los Logs'.
+    CALL FUNCTION 'POPUP_FOR_INTERACTION'
+      EXPORTING
+        headline = text-m01
+        text1    = text-m02
+        ticon    = 'I'
+        button_1 = text-m03.
+
+  ENDIF.
+
+  REFRESH: it_msg.
+
+ENDFORM.                    " F_PROCESO_XBLNR
+*&---------------------------------------------------------------------*
+*&      Form  F_CRUZAR_DATOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_cruzar_datos.
+
+  DATA: ls_table TYPE ty_table,
+        ls_salida TYPE ty_salida,
+        ls_file_table TYPE file_table,
+        i TYPE i,
+        it_txt_5 TYPE TABLE OF ty_table.
+
+  CLEAR: ls_salida, ls_table, ls_file_table.
+
+  SORT: it_pdf BY filename.
+
+  it_txt_5 = it_txt.
+  DELETE it_txt_5 WHERE doc_5 IS INITIAL.
+
+  LOOP AT it_salida INTO ls_salida.
+
+*Para 4
+    SORT it_txt BY doc.
+    READ TABLE it_txt INTO ls_table WITH KEY doc = ls_salida-xblnr BINARY SEARCH.
+
+    IF sy-subrc = 0.
+      LOOP AT it_pdf INTO ls_file_table.
+
+        IF ls_file_table-filename CS ls_table-archivo.
+          ls_salida-archivo = ls_file_table-filename.
+          MODIFY it_salida FROM ls_salida TRANSPORTING archivo.
+        ENDIF.
+      ENDLOOP.
+      CLEAR ls_salida.
+
+    ELSE.
+
+*Para 5
+      SORT it_txt_5 BY doc_5.
+      READ TABLE it_txt_5 INTO ls_table WITH KEY doc_5 = ls_salida-xblnr BINARY SEARCH.
+
+      IF sy-subrc = 0.
+        LOOP AT it_pdf INTO ls_file_table.
+
+          IF ls_file_table-filename CS ls_table-archivo.
+            ls_salida-archivo = ls_file_table-filename.
+            MODIFY it_salida FROM ls_salida TRANSPORTING archivo.
+          ENDIF.
+        ENDLOOP.
+        CLEAR ls_salida.
+
+      ENDIF.
+
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    " F_CRUZAR_DATOS
+*&---------------------------------------------------------------------*
+*&      Form  PREPARE_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_E_ROW_ID  text
+*----------------------------------------------------------------------*
+FORM prepare_data USING p_e_row_id TYPE lvc_s_row.
+
+  PERFORM f_visor_pdf USING  p_e_row_id.
+
+ENDFORM.                    " PREPARE_DATA
+*&---------------------------------------------------------------------*
+*&      Form  F_VISOR_PDF
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_P_E_ROW_ID  text
+*      -->P_p_pdf  text
+*----------------------------------------------------------------------*
+FORM f_visor_pdf USING p_e_row_id TYPE lvc_s_row.
+
+  DATA: ls_salida TYPE ty_salida.
+  CLEAR: ls_salida.
+
+  DATA lv_url TYPE char255.
+
+  IF NOT go_html_viewer IS INITIAL.
+    CALL METHOD go_html_viewer->free.
+    FREE go_html_viewer.
+  ENDIF.
+
+  IF go_html_viewer IS INITIAL.
+
+    LOOP AT it_salida INTO ls_salida.
+
+      IF p_e_row_id-index = sy-tabix.
+
+        CREATE OBJECT go_html_viewer
+          EXPORTING
+            parent = graphic_parent2.
+
+        IF ls_salida-archivo IS NOT INITIAL.
+
+          CONCATENATE p_pdf '\' ls_salida-archivo INTO lv_url.
+          TRANSLATE lv_url TO LOWER CASE.
+
+          CALL METHOD go_html_viewer->show_url
+            EXPORTING
+              url                    = lv_url
+*             frame                  =
+              in_place               = ' X'
+            EXCEPTIONS
+              cntl_error             = 1
+              cnht_error_not_allowed = 2
+              cnht_error_parameter   = 3
+              dp_error_general       = 4
+              OTHERS                 = 5.
+
+          IF sy-subrc <> 0.
+            MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  CLEAR lv_url.
+
+ENDFORM.                    " F_VISOR_PDF
+*&---------------------------------------------------------------------*
+*&      Form  F_CARGAR_CARPETA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_cargar_carpeta.
+
+  DATA: lv_directory TYPE epsf-epsdirnam.
+  DATA: lt_table TYPE TABLE OF epsfili.
+  DATA: ls_table TYPE epsfili.
+  DATA: ls_pdf TYPE file_table.
+
+  lv_directory = p_pdf.
+
+  CALL FUNCTION 'EPS_GET_DIRECTORY_LISTING'
+    EXPORTING
+      dir_name                     = lv_directory
+*   FILE_MASK                    = ' '
+* IMPORTING
+*   DIR_NAME                     =
+*   FILE_COUNTER                 =
+*   ERROR_COUNTER                =
+    TABLES
+      dir_list                     = lt_table
+* EXCEPTIONS
+*   INVALID_EPS_SUBDIR           = 1
+*   SAPGPARAM_FAILED             = 2
+*   BUILD_DIRECTORY_FAILED       = 3
+*   NO_AUTHORIZATION             = 4
+*   READ_DIRECTORY_FAILED        = 5
+*   TOO_MANY_READ_ERRORS         = 6
+*   EMPTY_DIRECTORY_LIST         = 7
+*   OTHERS                       = 8
+            .
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  LOOP AT lt_table INTO ls_table.
+
+    ls_pdf-filename = ls_table-name.
+
+    APPEND ls_pdf TO it_pdf.
+
+  ENDLOOP.
+
+ENDFORM.                    " F_CARGAR_CARPETA
+
+*&---------------------------------------------------------------------*
+*&      Form  f_ruta_xls
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_ruta_txt.
+
+* Función para tomar Archivo Local
+
+  DATA: ifiletable TYPE filetable.
+  DATA: xfiletable LIKE LINE OF ifiletable.
+
+  CALL METHOD cl_gui_frontend_services=>file_open_dialog
+    CHANGING
+      file_table              = ifiletable
+      rc                      = gv_rc
+    EXCEPTIONS
+      file_open_dialog_failed = 1
+      cntl_error              = 2
+      error_no_gui            = 3
+      not_supported_by_gui    = 4
+      OTHERS                  = 5.
+  READ TABLE ifiletable INTO xfiletable INDEX 1.
+
+  IF sy-subrc = 0.
+    p_txt = xfiletable-filename.
+  ENDIF.
+
+ENDFORM.                    "f_ruta_xls
+*&---------------------------------------------------------------------*
+*&      Form  F_RUTA_PDF
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_ruta_pdf.
+
+*  CALL METHOD cl_gui_frontend_services=>directory_browse
+*    CHANGING
+*      selected_folder      = p_pdf
+*    EXCEPTIONS
+*      cntl_error           = 1
+*      error_no_gui         = 2
+*      not_supported_by_gui = 3
+*      OTHERS               = 4.
+*
+*  IF sy-subrc <> 0.
+*    MESSAGE 'Seleccione una ruta valida' TYPE 'I'.
+*  ENDIF.
+
+  CALL FUNCTION '/SAPDMC/LSM_F4_SERVER_FILE'
+   EXPORTING
+     directory              = 'C:\usr\sap\E6D\DVEBMGS00'
+*   FILEMASK               = ' '
+   IMPORTING
+     serverfile             = p_pdf
+* EXCEPTIONS
+*   CANCELED_BY_USER       = 1
+*   OTHERS                 = 2
+            .
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+
+ENDFORM.                    " F_RUTA_PDF
+*&---------------------------------------------------------------------*
+*&      Form  F_AT_SEL_SCR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_at_sel_scr.
+
+  CASE sy-ucomm.
+    WHEN 'FC01'.
+      PERFORM llamo_transaccion.
+    WHEN 'FC02'.
+      PERFORM llamo_transaccion_eq.
+    WHEN 'FC03'.
+      PERFORM f_visualizar_slg1.
+    WHEN 'FC04'.
+      PERFORM f_visualizo_logs USING 'ZTB_CONT_COMP'.
+  ENDCASE.
+
+ENDFORM.                    " F_AT_SEL_SCR
+*&---------------------------------------------------------------------*
+*&      Form  ERROR_EQUIV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_LS_MSG  text
+*----------------------------------------------------------------------*
+FORM error_equiv USING p_vl_pv_4 TYPE char4
+                       p_vl_pv_5 TYPE char5
+                 CHANGING p_msg TYPE bal_s_msg.
+
+  CLEAR: p_msg.
+
+  p_msg-msgty = 'E'.
+  p_msg-detlevel = 2.
+  p_msg-msgno = 952.
+  p_msg-msgid = 'YTAX'.
+
+  IF p_vl_pv_4 IS NOT INITIAL.
+    p_msg-msgv1 = p_vl_pv_4.
+  ELSE.
+    p_msg-msgv1 = p_vl_pv_5.
+  ENDIF.
+
+  APPEND p_msg TO it_msg.
+  CLEAR p_msg.
+
+ENDFORM.                    " ERROR_EQUIV
+*&---------------------------------------------------------------------*
+*&      Form  ADD_LOG_PV_ERR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM add_log_pv_err.
+
+  DATA ls_msg TYPE bal_s_msg.
+
+  ls_msg-detlevel = 1.
+
+  ls_msg-msgty = 'E'.
+  ls_msg-probclass = 1.
+  ls_msg-msgno = 953.
+  ls_msg-msgid = 'YTAX'.
+
+  CALL FUNCTION 'BAL_LOG_MSG_ADD'
+    EXPORTING
+      i_s_msg       = ls_msg
+      i_log_handle  = gv_log_handle
+    EXCEPTIONS
+      log_not_found = 0
+      OTHERS        = 1.
+
+  IF sy-subrc <> 0.
+*    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+** save this log
+  INSERT gv_log_handle INTO TABLE gt_log_handle.
+
+  CALL FUNCTION 'BAL_DB_SAVE'
+    EXPORTING
+       i_save_all      = 'X'
+      i_t_log_handle   = gt_log_handle
+*    IMPORTING
+*      e_new_lognumbers = l_t_new_lognumbers
+    EXCEPTIONS
+      OTHERS           = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  CLEAR ls_msg.
+
+  LOOP AT it_msg INTO ls_msg.
+
+*    ls_msg-detlevel = 2.
+*
+*    MODIFY it_msg FROM ls_msg.
+
+    CALL FUNCTION 'BAL_LOG_MSG_ADD'
+      EXPORTING
+        i_s_msg       = ls_msg
+        i_log_handle  = gv_log_handle
+      EXCEPTIONS
+        log_not_found = 0
+        OTHERS        = 1.
+
+    IF sy-subrc <> 0.
+*    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+** save this log
+    INSERT gv_log_handle INTO TABLE gt_log_handle.
+
+    CALL FUNCTION 'BAL_DB_SAVE'
+      EXPORTING
+         i_save_all      = 'X'
+        i_t_log_handle   = gt_log_handle
+*    IMPORTING
+*      e_new_lognumbers = l_t_new_lognumbers
+      EXCEPTIONS
+        OTHERS           = 1.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+  ENDLOOP.
+
+  CLEAR: ls_msg.
+
+ENDFORM.                    " ADD_LOG_PV_ERR
+*&---------------------------------------------------------------------*
+*&      Form  F_GOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_BKPF  text
+*----------------------------------------------------------------------*
+FORM f_gos     USING p_vl_doc  TYPE bkpf
+                     p_ls_salida TYPE ty_salida
+            CHANGING p_gv_band TYPE char1.
+
+  DATA: vl_fol_id         TYPE soodk,
+        l_objdes          TYPE so_obj_des,
+        l_file_path       TYPE string,
+        l_app_file_name   TYPE string,
+        vl_message        TYPE bal_s_msg,
+        l_objkey          TYPE swo_typeid,
+        l_path_len        TYPE i,
+        p_f_back          TYPE string,
+        ls_salida         TYPE ty_salida,
+        p_vl_doc1(100)    TYPE c,
+        vl_bukrs          TYPE bkpf-bukrs,
+        vl_belnr          TYPE bkpf-belnr,
+        vl_gjahr          TYPE bkpf-gjahr.
+
+  DATA:   it_objhead        TYPE STANDARD TABLE OF soli,
+          it_content        LIKE STANDARD TABLE OF soli,
+          i_objhead         TYPE TABLE OF soli,
+          x_object_id       TYPE soodk,
+          x_object          TYPE borident,
+          x_note            TYPE borident,
+          line(255)         TYPE c,
+          x_obj_data        TYPE sood1,
+          wa_content        LIKE soli.
+
+*-- Get Folder ID
+  CLEAR vl_fol_id.
+  CALL FUNCTION 'SO_FOLDER_ROOT_ID_GET'         "Call the Function Module to get the Folder Id
+          EXPORTING
+            region    = 'B'
+          IMPORTING
+            folder_id = vl_fol_id
+          EXCEPTIONS                                        "#EC FB_RC
+            OTHERS    = 1.
+
+  CLEAR: l_objdes.
+
+  p_f_back = p_pdf.
+*  p_vl_doc = '0017289_FC_A-0008-00155778.pdf'.
+  p_vl_doc1 = p_ls_salida-archivo.
+
+  CONCATENATE p_f_back "string de la carpeta
+              p_vl_doc1  "nombre del documento
+       INTO   l_app_file_name SEPARATED BY '\'.
+
+  TRY.
+      OPEN DATASET l_app_file_name FOR INPUT IN BINARY MODE.
+
+      WHILE sy-subrc = 0.
+        READ DATASET l_app_file_name INTO wa_content.
+        APPEND wa_content TO it_content.
+      ENDWHILE.
+      CLOSE DATASET l_app_file_name.
+
+    CATCH cx_sy_file_access_error.
+
+*      vl_message-msgty = 'E'.
+*      vl_message-msgid = 'ZZ'.
+*      vl_message-msgno = 504.
+*      vl_message-msgv1 = p_vl_doc-name.
+*      vl_message-detlevel = 1.
+*      APPEND vl_message TO it_message.
+*      CLEAR: vl_message.
+
+*      MESSAGE 'Error reading file' TYPE 'E'.
+
+  ENDTRY.
+
+  CALL FUNCTION 'SO_CONVERT_CONTENTS_BIN'
+    EXPORTING
+      it_contents_bin = it_content[]
+    IMPORTING
+      et_contents_bin = it_content[].
+
+*/-- Object Attachment
+  x_obj_data-objsns = 'O'. "c_o.
+  x_obj_data-objla = sy-langu.
+
+  CONCATENATE '&KEY&'
+              l_app_file_name
+        INTO  line.
+  APPEND line TO it_content.
+
+  x_obj_data-objdes = p_vl_doc.
+
+  REFRESH: i_objhead.
+
+**Inserting the HTML FILE IMAGE
+  CALL FUNCTION 'SO_OBJECT_INSERT'
+    EXPORTING
+      folder_id                  = vl_fol_id
+      object_hd_change           = x_obj_data
+      object_type                = 'BIN' "c_ext
+      owner                      = sy-uname
+    IMPORTING
+      object_id                  = x_object_id
+    TABLES
+      objcont                    = it_content
+      objhead                    = i_objhead
+    EXCEPTIONS
+      active_user_not_exist      = 1
+      communication_failure      = 2
+      component_not_available    = 3
+      dl_name_exist              = 4
+      folder_not_exist           = 5
+      folder_no_authorization    = 6
+      object_type_not_exist      = 7
+      operation_no_authorization = 8
+      owner_not_exist            = 9
+      parameter_error            = 10
+      substitute_not_active      = 11
+      substitute_not_defined     = 12
+      system_failure             = 13
+      x_error                    = 14
+      OTHERS                     = 15.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+
+  ELSEIF sy-subrc EQ 0 AND ls_salida-archivo IS NOT INITIAL.
+    p_gv_band = 'X'.
+  ENDIF.
+
+*  vl_bukrs = 7500.
+*  vl_belnr = 1900000092.
+*  vl_gjahr = 2020.
+
+  vl_bukrs = p_vl_doc-bukrs.
+  vl_belnr = p_vl_doc-belnr.
+  vl_gjahr = p_vl_doc-gjahr.
+
+  CONCATENATE vl_bukrs
+              vl_belnr
+              vl_gjahr
+         INTO l_objkey.
+
+  x_object-objkey  = l_objkey.
+  x_object-objtype = 'BKPF'.
+
+  IF sy-subrc = 0 AND x_object-objkey IS NOT INITIAL.
+
+    x_note-objtype = 'MESSAGE'.
+    CONCATENATE vl_fol_id
+                x_object_id
+           INTO x_note-objkey SEPARATED BY space.
+
+    CALL FUNCTION 'BINARY_RELATION_CREATE_COMMIT'
+      EXPORTING
+        obj_rolea    = x_object
+        obj_roleb    = x_note
+        relationtype = 'ATTA'
+      EXCEPTIONS
+        OTHERS       = 1.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ELSE.
+
+*    vl_message-msgty = 'I'.
+*    vl_message-msgid = 'ZZ'.
+*    vl_message-msgno = 505.
+*    vl_message-msgv1 = p_vl_doc-name.
+*    vl_message-msgv2 = p_vl_doc-bukrs.
+*    vl_message-msgv3 = p_vl_doc-belnr.
+*    vl_message-msgv4 = p_vl_doc-gjahr.
+*    vl_message-detlevel = 1.
+*    APPEND vl_message TO it_message.
+*    CLEAR: vl_message.
+
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " F_GOS
